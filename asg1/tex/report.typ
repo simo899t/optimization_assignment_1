@@ -1,5 +1,4 @@
-#import "@preview/lovelace:0.3.0": pseudocode-list
-#let alg = pseudocode-list
+#import "/temp/temp.typ": *
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 #let courseid   = "AI505"
@@ -68,17 +67,6 @@
   ]
 }
 
-
-// ─── Code listing helper ──────────────────────────────────────────────────────
-#show raw.where(block: true): it => {
-  block(
-    width: 100%,
-    stroke: (top: 0.6pt, bottom: 0.6pt),
-    inset: (x: 8pt, y: 6pt),
-    fill: luma(248),
-  )[#it]
-}
-
 // ─── Title ────────────────────────────────────────────────────────────────────
 #v(-4pt)
 #align(left)[
@@ -90,53 +78,6 @@
   #v(0.4em)
   #line(length: 100%, stroke: 0.8pt)
 ]
-
-#v(1em)
-
-// ─── Template instructions (remove for submission) ────────────────────────────
-Always insert a `#pagebreak()` after every Task.
-Remove the content of this page.
-
-#v(1em)
-
-#line(length: 100%, stroke: (dash: "dashed", thickness: 0.4pt))
-*Template to write models (see source)*
-
-$
-  max quad & sum_(j=1)^n c_j x_j                              & & #h(0em) \
-  "s.t." quad & sum_(j=1)^n a_(i j) x_j >= b_i,  quad & i = 1, dots, m \
-           & x_j >= 0,                             quad & j = 1, dots, n
-$
-
-#line(length: 100%, stroke: (dash: "dashed", thickness: 0.4pt))
-*Template for algorithm pseudocode (see source):*
-
-#v(0.5em)
-#algorithm(caption: [How to write algorithms])[
-  #pseudocode-list[
-    - *Data:* this text
-    - *Result:* how to write algorithm with Typst
-    + initialization
-    + *while* not at end of this document *do*
-      + read current
-      + *if* understand *then*
-        + go to next section
-        + current section becomes this one
-      + *else*
-        + go back to the beginning of current section
-  ]
-]
-
-#v(0.5em)
-#line(length: 100%, stroke: (dash: "dashed", thickness: 0.4pt))
-*Template for source code inclusion:*
-
-```python
-import numpy as np
-```
-
-#line(length: 100%, stroke: (dash: "dashed", thickness: 0.4pt))
-
 
 
 // ─── Task 1 ───────────────────────────────────────────────────────────────────
@@ -153,14 +94,149 @@ Lets fix 2 points, that is the starting point $x_1$ and the goal point $x_n$
 
 $ x_1 = vec(1,1), quad x = vec(100,100) $
 
+For this we define a class in python to handle the seach space.
+
+#code(
+  ```py
+  class search_space():
+    def __init__(self, start, goal):
+        self.start = start
+        self.goal = goal
+        self.obstacles = []
+        self.trajectory = []
+  ```
+)
+
 === Straight path
 For a straight path we can generate a path for finding $x$
 
+The straigt path can be easily found by
+
+#algorithm(caption: [Straight path])[
+  #pseudo[
+    - *Input:* start $x_1 = (1,1)$, goal $x_n = (100,100)$, steps $s = 20$
+    - *Output:* trajectory $T$
+    + direction $d arrow.l x_n - x_1$
+    + $T arrow.l []$
+    + *for* $t in "linspace"(0, 1, s)$ *do*
+      + $p arrow.l x_1 + t dot d$
+      + append $p$ to $T$
+    + *return* $T$
+  ]
+]
+#pagebreak()
+
+=== Obstacles
+
+We can define a new class and an `add_object` function to the `search_space` class
+#code(
+```py
+class circular_object():
+    def __init__(self, center: np.array, diameter: float):
+        self.center_point = center
+        self.diameter = diameter
+
+class search_space():
+  # ...
+  def add_obstacle(self, object: circular_object):
+        self.obstacles.append(object)
+```
+)
+
+This way its easy to create object within the seach space
+
+#code(
+```py
+search = search_space(x0, xn)
+
+object1 = circular_object(np.array([40,30]), 10.0)
+search.add_obstacle(object1)
+object2 = circular_object(np.array([50,55]), 7.0)
+search.add_obstacle(object2)
+object3 = circular_object(np.array([60,80]), 15.0)
+search.add_obstacle(object3)
+```
+)
+
+=== Visualisation
+#figure(
+  image("assets/image-2.png", width: 30em),
+  caption: [Linear path with tree obstacles\
+   `[circular_object(c=[40 30], d=20.0), circular_object(c=[50 55], d=15.0), circular_object(c=[60 80], d=30.0)]` ]
+)
+
+#pagebreak()
 
 == Objective Function
+
+The objective function is defined as
+$ f(bold(x)) = f_L (bold(x)) + lambda dot f_S (bold(x)) + mu dot f_O (bold(x)) $
+or in python
+#code(
+```py
+class search_space():
+  # ...
+  def obj_func(self, x, lam, mu, alpha):
+        def f(x):
+            traj = x.reshape(-1, 2)
+            return (self.pathlength(traj)
+                    + lam * self.smoothness(traj)
+                    + mu * self.avoidance(traj, alpha))
+
+        return f(x), grad(f)(x)
+```
+)
+=== Path length
+The path length function is defined as $ f_L (bold(x)) = summ(i=1, n-1, norm(x_(i+1) - x_i)^2) $
+or in python
+#code(
+```py
+class search_space():
+  # ...
+  def pathlength(self):
+          path = self.trajectory
+          return sum(np.linalg.norm(path[i+1] - path[i]) for i in range(len(path) - 1))
+```
+)
+
+=== Smoothnes
+
+The smoothnes function is defined as $ f_S (bold(x)) = summ(i=2, n-1, norm(x_(i+1) - 2x_i- x_(i-1))^2) $
+or in python
+#code(
+```py
+class search_space():
+  # ...
+  def smoothness(self):
+        x = self.trajectory
+        return sum(np.linalg.norm(x[i+1] - 2*x[i]- x[i-1]) for i in range(1,len(x) - 1))
+```
+)
+#pagebreak()
+
+=== Object avoidance
+The obstacle avoidance function is defined as
+$ f_O (bold(x)) = summ(i=1,n,phi(x_i))) $
+$ phi(bold(x)_i) = exp(-alpha(d(bold(x)_i)^2 - r^2)) $
+
+#code(
+```py
+class search_space():
+  # ...
+  def avoidance(self, x, alpha):
+        penalty = 0
+        for xi in x:
+            penalty += sum(anp.exp(-alpha * (
+                anp.linalg.norm(xi - obs.center_point)**2 - obs.radius**2))
+                    for obs in self.obstacles
+            )
+        return penalty
+```
+)
+
+
 == Optimization Algorithms
 == Comparison
-
 
 
 
