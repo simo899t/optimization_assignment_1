@@ -19,38 +19,53 @@ class search_space():
         dir = goal - start
         return [start + t * dir for t in np.linspace(0, 1, steps)]
 
-    def gradient_descent_path(self, lam=0, mu=0, alpha_step=0.01, alpha=0.1, tol=1e-6, max_iter=1000):
+    def gradient_descent_path(self, eta=1, lam=0, mu=0, alpha_step=0.01, alpha=0.1, tol=1e-6, max_iter=1000):
         x = np.array(self.straigt_path(self.start, self.goal)).flatten()    # <- initial straigth path
         convergence_vals = []
 
         for i in range(max_iter):
-            val, g = self.obj_func(x, lam, mu, alpha)
+            val, g = self.obj_func(x, eta, lam, mu, alpha)
             convergence_vals.append(val)
 
+            g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-3, 1e3}
             x_new = x - alpha_step * g
-            print(f"stepped towards {x_new}")
+            print(f"new trajectory {x_new.reshape(-1, 2)}")
 
             x_new[:2] = self.start
             x_new[-2:] = self.goal
 
-            if anp.linalg.norm(x_new-x) < tol:
-                print(f"converged at iteation: {i+1}")
-                break
             x = x_new
         self.trajectory = list(x.reshape(-1, 2))
         return x, convergence_vals
 
+    def nelder_mead():
+        # TODO <- cool algorithm for comparison
+        pass
+
+    def third_method_maybe():
+        # TODO <- cool algorithm for comparison
+        pass
+
     def pathlength(self, x):
-        return sum(anp.linalg.norm(x[i+1] - x[i])**2 for i in range(len(x) - 1))
+        epsilon = 1e-12
+        pathlength = sum(anp.sqrt(anp.dot(x[i+1] - x[i], x[i+1] - x[i]) + epsilon)**2 for i in range(len(x)-1))
+        # pathlength = sum(anp.linalg.norm(x[i+1] - x[i])**2 for i in range(len(x) - 1))
+        # print(pathlength)
+        return pathlength
 
     def smoothness(self, x):
-        return sum(anp.linalg.norm(x[i+1] - 2*x[i] - x[i-1]) for i in range(1, len(x) - 1))
+        epsilon = 1e-12
+        smoothness = sum(anp.sqrt(anp.dot((x[i+1] - 2*x[i] + x[i-1]),(x[i+1] - 2*x[i] + x[i-1])) + epsilon)**2 for i in range(1, len(x) - 1))
+        # smoothness = sum(anp.linalg.norm((x[i+1] - 2*x[i] + x[i-1]))**2 for i in range(1, len(x) - 1))
+        # print(smoothness)
+        return smoothness
 
     def avoidance1(self, x):
         penalty = 0
 
         def d(xi, obs):
-          return anp.linalg.norm(xi - obs.center_point)
+            epsilon = 1e-12
+            return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon)
     
         for xi in x:
             for obs in self.obstacles:
@@ -59,6 +74,7 @@ class search_space():
                     penalty += 1 / (d(xi, obs) - r)**2
                 else:
                     penalty += 1e9
+        # print(penalty)
         return penalty
 
     
@@ -66,7 +82,9 @@ class search_space():
         penalty = 0  
 
         def d(xi, obs):
-            return anp.linalg.norm(xi - obs.center_point)
+            epsilon = 1e-12
+            return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon) #anp.norm men finite 
+
 
         for xi in x:
             penalty += sum(anp.exp(-alpha * (
@@ -75,20 +93,22 @@ class search_space():
             )
         return penalty
 
-    def obj_func(self, x, lam, mu, alpha=None):
+    def obj_func(self, x, eta=0, lam=0, mu=0, alpha=0.1):
         def f(x):
-            traj = x.reshape(-1, 2)
-            av = self.avoidance2(traj, alpha)
+            x = x.reshape(-1, 2)
+            av = self.avoidance2(x, alpha)
             # av = self.avoidance1(traj)
-            return self.pathlength(traj) + lam * self.smoothness(traj) + mu * av
+            return eta * self.pathlength(x) + lam * self.smoothness(x) + mu * av
         
-        # return f(x), grad(f)(x) # if avoidance2, else use aprox
-        return f(x), approx_fprime(x, f, 1e-5) # <- maybe nanograd https://github.com/rasmusbergpalm/nanograd/tree/main
+        return f(x), grad(f)(x) # if avoidance2, else use aprox
+        # return f(x), approx_fprime(x, f, 1e-5) # <- maybe nanograd https://github.com/rasmusbergpalm/nanograd/tree/main
 
     def plot_convergence(self, vals: list):
+        plt.figure()
         plt.plot(vals)
         plt.xlabel("Iteration")
         plt.ylabel("Objective value")
+        plt.show()
 
 
     def plot(self):
@@ -136,15 +156,35 @@ search = search_space(x0, xn)
 
 object1 = circular_object(np.array([40,30]), 10.0)
 search.add_obstacle(object1)
-object2 = circular_object(np.array([50,55]), 7.0)
+object2 = circular_object(np.array([50,55]), 7.0) 
 search.add_obstacle(object2)
-object3 = circular_object(np.array([60,80]), 15.0)
+object3 = circular_object(np.array([85,80]), 10.0)
 search.add_obstacle(object3)
 
 # search.straigt_path(search.start, search.goal)
-search.straigt_path(search.start, search.goal)
-x, history = search.gradient_descent_path(lam=0.0, mu=10, alpha_step=1e-3)
 
+x = np.array(search.straigt_path(search.start, search.goal)).flatten()
+
+# print(search.pathlength(x))
+# print(search.smoothness(x))
+# print(search.avoidance2(x, 0.1))
+
+# def f(x):
+#    x = x.reshape(-1, 2)
+#    av = search.avoidance2(x, 0.1)
+#    # av = self.avoidance1(traj)
+#    return search.pathlength(x) + 0.1 * search.smoothness(x) + 0.1 * av
+# 
+# print(f(x))
+# 
+# g = search.obj_func(x, eta=0, lam=0, mu=0, alpha=0.1)
+# print(g)
+
+# print(g)
+
+x, history = search.gradient_descent_path(lam=0.5, mu=5, alpha_step=1e-2, max_iter=100)
+# print(x)
+print(history)
 
 search.plot_convergence(history)
 search.plot()

@@ -234,6 +234,10 @@ class search_space():
 ```
 )
 
+#figure(
+  image("assets/image.png", width: 30em),
+  caption: [der sker en ting med]
+)
 
 == Optimization Algorithms
 == Comparison
