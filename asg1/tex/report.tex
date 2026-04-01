@@ -175,7 +175,165 @@ Template for figure inclusion (see latex source)
 \newpage
 \section{Task 1}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+A robot must move from a given start position to a given goal position
+in a 2D environment while avoiding obstacles and producing a smooth trajectory.
+$$ \{x_1,x_2,\dots,x_n\} \in \mathbb{R}^2 $$
 
+
+
+Lets fix 2 points, that is the starting point $x_1$ and the goal point $x_n$
+
+$$x_1 = \begin{pmatrix}1\\1\end{pmatrix}, \quad x_n = \begin{pmatrix}100\\100\end{pmatrix}$$
+
+For this, lets define a class in python to handle the search space.
+
+\begin{lstlisting}
+class search_space():
+    def __init__(self, start, goal):
+        self.start = start
+        self.goal = goal
+        self.obstacles = []
+        self.trajectory = []
+\end{lstlisting}
+
+\subsubsection{Straight path}
+For a straight path we can generate a path for finding $x$.
+
+The straight path can be easily found by
+
+\begin{algorithm}[htb]
+        \KwIn{start $x_1 = (1,1)$, goal $x_n = (100,100)$, steps $s = 20$}
+        \KwOut{trajectory $T$}
+        $d \leftarrow x_n - x_1$\;
+        $T \leftarrow []$\;
+        \For{$t \in \texttt{linspace}(0, 1, s)$}{
+            $p \leftarrow x_1 + t \cdot d$\;
+            append $p$ to $T$\;
+        }
+        \Return{$T$}\;
+        \caption{Straight path}
+\end{algorithm}
+
+\pagebreak
+
+\subsubsection{Obstacles}
+
+For creating obstacles, lets define a new class \texttt{obstacle} and an \texttt{add\_obstacle} function to the \texttt{search\_space} class
+
+\begin{lstlisting}
+class circular_object():
+    def __init__(self, center: np.array, diameter: float):
+        self.center_point = center
+        self.diameter = diameter
+
+class search_space():
+    # ...
+    def add_obstacle(self, object: circular_object):
+        self.obstacles.append(object)
+\end{lstlisting}
+
+This way its easy to create objects within the search space
+
+\begin{lstlisting}
+search = search_space(x0, xn)
+
+object1 = circular_object(np.array([40,30]), 10.0)
+search.add_obstacle(object1)
+object2 = circular_object(np.array([50,55]), 7.0)
+search.add_obstacle(object2)
+object3 = circular_object(np.array([60,80]), 15.0)
+search.add_obstacle(object3)
+\end{lstlisting}
+
+\subsubsection{Visualisation}
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=0.6\textwidth]{assets/image-2.png}
+\end{center}
+\caption{Linear path with three obstacles.
+\texttt{[circular\_object(c=[40 30], d=20.0), circular\_object(c=[50 55], d=15.0), circular\_object(c=[60 80], d=30.0)]}}
+\end{figure}
+
+\pagebreak
+
+\subsection{Objective Function}
+
+The objective function is defined as
+$$f(\mathbf{x}) = f_L(\mathbf{x}) + \lambda \cdot f_S(\mathbf{x}) + \mu \cdot f_O(\mathbf{x})$$
+or in python
+\begin{lstlisting}
+class search_space():
+    # ...
+    def obj_func(self, x, lam, mu, alpha):
+        def f(x):
+            traj = x.reshape(-1, 2)
+            return (self.pathlength(traj)
+                    + lam * self.smoothness(traj)
+                    + mu * self.avoidance(traj, alpha))
+
+        return f(x), grad(f)(x)
+\end{lstlisting}
+
+\subsubsection{Path length}
+The path length function is defined as
+$$f_L(\mathbf{x}) = \sum_{i=1}^{n-1} \|x_{i+1} - x_i\|^2$$
+or in python
+\begin{lstlisting}
+class search_space():
+    # ...
+    def pathlength(self):
+        path = self.trajectory
+        return sum(np.linalg.norm(path[i+1] - path[i]) 
+                   for i in range(len(path) - 1))
+\end{lstlisting}
+
+\subsubsection{Smoothness}
+
+The smoothness function is defined as
+$$ f_S(\mathbf{x}) = \sum_{i=2}^{n-1} \|x_{i+1} - 2x_i - x_{i-1}\|^2 $$
+or in python
+\begin{lstlisting}
+class search_space():
+    # ...
+    def smoothness(self):
+        x = self.trajectory
+        return sum(np.linalg.norm(x[i+1] - 2*x[i] - x[i-1]) 
+                   for i in range(1, len(x) - 1))
+\end{lstlisting}
+
+\pagebreak
+
+\subsubsection{Object avoidance}
+The obstacle avoidance function is defined as
+$$f_O(\mathbf{x}) = \sum_{i=1}^{n} \phi(x_i)$$
+$$\phi(\mathbf{x}_i) = \exp\!\left(-\alpha\left(d(\mathbf{x}_i)^2 - r^2\right)\right)$$
+
+or in python
+\begin{lstlisting}
+class search_space():
+    # ...
+    def avoidance(self, x, alpha):
+        penalty = 0
+        for xi in x:
+            penalty += sum(anp.exp(-alpha * (
+                anp.linalg.norm(xi - obs.center_point)**2 - obs.radius**2))
+                    for obs in self.obstacles
+            )
+        return penalty
+\end{lstlisting}
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=0.6\textwidth]{assets/image.png}
+\end{center}
+\caption{der sker en ting med ham her}
+\end{figure}
+
+\subsection{Optimization Algorithms}
+
+
+\subsection{Comparison}
 
 
 

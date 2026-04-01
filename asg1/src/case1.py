@@ -1,7 +1,6 @@
 import numpy as np
 import autograd.numpy as anp
 from autograd import grad
-from scipy.optimize import approx_fprime
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
@@ -158,7 +157,7 @@ object1 = circular_object(np.array([40,30]), 10.0)
 search.add_obstacle(object1)
 object2 = circular_object(np.array([50,55]), 7.0) 
 search.add_obstacle(object2)
-object3 = circular_object(np.array([85,80]), 10.0)
+object3 = circular_object(np.array([80,80]), 5.0)
 search.add_obstacle(object3)
 
 # search.straigt_path(search.start, search.goal)
@@ -182,7 +181,7 @@ x = np.array(search.straigt_path(search.start, search.goal)).flatten()
 
 # print(g)
 
-x, history = search.gradient_descent_path(lam=0.5, mu=5, alpha_step=1e-2, max_iter=100)
+x, history = search.gradient_descent_path(eta = 1,lam=0.5, mu=5, alpha_step=1e-2, max_iter=100)
 # print(x)
 print(history)
 
