@@ -1,4 +1,3 @@
-import numpy as np
 import autograd.numpy as anp
 from autograd import grad
 import matplotlib.pyplot as plt
@@ -16,10 +15,10 @@ class search_space():
         
     def straigt_path(self, start, goal, steps=50):
         dir = goal - start
-        return [start + t * dir for t in np.linspace(0, 1, steps)]
+        return [start + t * dir for t in anp.linspace(0, 1, steps)]
 
     def gradient_descent_path(self, eta=1, lam=0, mu=0, alpha_step=0.01, alpha=0.1, tol=1e-6, max_iter=1000):
-        x = np.array(self.straigt_path(self.start, self.goal)).flatten()    # <- initial straigth path
+        x = anp.array(self.straigt_path(self.start, self.goal)).flatten()    # <- initial straigth path
         convergence_vals = []
 
         for i in range(max_iter):
@@ -28,7 +27,7 @@ class search_space():
 
             g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-3, 1e3}
             x_new = x - alpha_step * g
-            print(f"new trajectory {x_new.reshape(-1, 2)}")
+            # print(f"new trajectory {x_new.reshape(-1, 2)}")
 
             x_new[:2] = self.start
             x_new[-2:] = self.goal
@@ -183,9 +182,9 @@ x = np.array(search.straigt_path(search.start, search.goal)).flatten()
 
 x, history = search.gradient_descent_path(eta = 1,lam=0.5, mu=5, alpha_step=1e-2, max_iter=100)
 # print(x)
-print(history)
+# print(history)
 
-search.plot_convergence(history)
+# search.plot_convergence(history)
 search.plot()
 
 
