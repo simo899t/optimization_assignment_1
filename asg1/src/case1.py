@@ -1,5 +1,5 @@
 import autograd.numpy as anp
-from autograd import grad
+from autograd import grad, hessian
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import random
@@ -25,13 +25,17 @@ class search_space():
         x = anp.array(self.straigt_path(self.start, self.goal, steps)).flatten()    # <- initial straigth path
         convergence_vals = []
         for i in range(max_iter):
-            val, g = self.obj_func(x, eta, lam, mu, alpha)
+            val, g, h= self.obj_func(x, eta, lam, mu, alpha)
             convergence_vals.append(val)
-
+            # print(f"x = {val}")
+            # print(f"first order derivative = {g}")
+            # print(f"second order derivative = {h}")
             g = anp.clip(g, -1e4, 1e4) # <- ensure that g in {1e-4, 1e4}
             x_new = x - alpha_step * g
             if i % 10 == 0:
-                print(f"new trajectory {x_new.reshape(-1, 2)}", end='\r', flush=True)
+                # print(f"new trajectory {x_new.reshape(-1, 2)}", end='\r', flush=True)
+                pass
+            print(i)
 
             x_new[:2] = self.start
             x_new[-2:] = self.goal
@@ -85,8 +89,8 @@ class search_space():
 
         def d(xi, obs):
             epsilon = 1e-12
+            # Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.
             return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon) #anp.norm men finite 
-
 
         for xi in x:
             penalty += sum(anp.exp(-alpha * (
@@ -102,8 +106,7 @@ class search_space():
             # av = self.avoidance1(x)
             return eta * self.pathlength(x) + lam * self.smoothness(x) + mu * av
         
-        return f(x), grad(f)(x) # if avoidance2, else use aprox
-        # return f(x), approx_fprime(x, f, 1e-5) # <- maybe nanograd https://github.com/rasmusbergpalm/nanograd/tree/main
+        return f(x), grad(f)(x), hessian(f)(x)
 
     def plot_convergence(self, vals: list):
         plt.figure()
@@ -111,7 +114,6 @@ class search_space():
         plt.xlabel("Iteration")
         plt.ylabel("Objective value")
         plt.show()
-
 
     def plot(self):
         _, ax = plt.subplots(figsize=(10, 10))
@@ -173,10 +175,10 @@ def random_placement(n_objects = 3):
     perp = anp.array([-unit[1], unit[0]])
     
     for _ in range(n_objects):
-        radius = random.randint(5,15)
+        radius = random.randint(10,15)
         while True:
             t = random.uniform(0.15, 0.85)
-            offset = random.uniform(-30, 30)
+            offset = random.uniform(-20, 20)
             coord = x0 + t * dir_vec + offset * perp
             coord = [float(coord[0]), float(coord[1])]
             if not overlaps(coord, radius, search.obstacles):
@@ -191,7 +193,7 @@ search.add_obstacle(circular_object(anp.array([50,50]), 30))
 
 n_objects = 5
 steps = 100
-max_iterations = 400
+max_iterations = 10
 
 # random_placement(n_objects)
 print(f"=== searching on {steps} steps ===")
