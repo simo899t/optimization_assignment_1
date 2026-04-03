@@ -1,4 +1,5 @@
 import autograd.numpy as anp
+import numpy as np
 from autograd import grad, hessian
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -19,10 +20,10 @@ class search_space():
         dir = goal - start
         x = [start + t * dir for t in anp.linspace(0, 1, steps)]
         self.trajectory = list(anp.array(x).flatten().reshape(-1, 2))
-        return x
+        # return x
 
-    def gradient_descent_path(self, eta=1, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000, steps = 100):
-        x = anp.array(self.straigt_path(self.start, self.goal, steps)).flatten()    # <- initial straigth path
+    def gradient_descent_path(self, eta, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000): # <- 1st order
+        x = anp.array(self.trajectory).flatten()    # <- initial straigth path
         convergence_vals = []
         for i in range(max_iter):
             val, g = self.obj_func(x, eta, lam, mu, alpha, order=1)
@@ -30,7 +31,7 @@ class search_space():
             # print(f"x = {val}")
             # print(f"first order derivative = {g}")
             # print(f"second order derivative = {h}")
-            g = anp.clip(g, -1e4, 1e4) # <- ensure that g in {1e-4, 1e4}
+            g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
             x_new = x - alpha_step * g
             if i % 10 == 0:
                 # print(f"new trajectory {x_new.reshape(-1, 2)}", end='\r', flush=True)
@@ -44,13 +45,70 @@ class search_space():
         self.trajectory = list(x.reshape(-1, 2))
         return x, convergence_vals
 
-    def nelder_mead():
-        # TODO <- cool algorithm for comparison
-        pass
+    def newton_method(self, lam, mu, alpha=0.1, max_iter = 1000): # <- 2nd order
+        x = anp.array(self.trajectory).flatten()
+        convergence_vals = []
 
-    def third_method_maybe():
-        # TODO <- cool algorithm for comparison
-        pass
+        for i in range(max_iter):
+            val, g, h = self.obj_func(x, lam, mu, alpha, order=2)
+            convergence_vals.append(val)
+            g = anp.clip(g, -1e1, 1e1) # <- ensure that g in {1e-4, 1e4}
+            print(f"Current path: {x}")
+            print(f"{i}'th iteration")
+            # print(f"Gradient: {g}")
+            # print(f"Hessian: {h}")
+            # print(f"Inverted Hessian: {np.linalg.inv(h)}")
+            delta = np.linalg.inv(h) @ g
+            print(f"Delta = {delta}")
+            x_new = x - delta
+
+            x = x_new
+
+        return x, convergence_vals
+
+
+    def nelder_mead(self, ): # <- 0-order
+        #def nelder_mead(f, S, eps, max_iterations, alpha=1.0, beta=2.0, gamma=0.5):
+        delta = float("inf")
+        y_arr = np.array([f(x) for x in S])
+        simplex_history = [S.copy()]
+        iterations=0
+        while delta > eps and iterations <= max_iterations:
+            iterations+=1
+            # Sort by objective values (lowest to highest)
+            p = np.argsort(y_arr)
+            S, y_arr = S[p], y_arr[p]
+            xl, yl = S[0], y_arr[0] # Lowest
+            xh, yh = S[-1], y_arr[-1] # Highest
+            xs, ys = S[-2], y_arr[-2] # Second-highest
+            xm = np.mean(S[:-1], axis=0) # Centroid
+            # Reflection
+            xr = xm + alpha * (xm - xh)
+            yr = f(xr)
+            if yr < yl:
+                # Expansion
+                xe = xm + beta * (xr - xm)
+                ye = f(xe)
+                S[-1], y_arr[-1] = (xe, ye) if ye < yr else (xr, yr)
+            elif yr >= ys:
+                if yr < yh:
+                    xh, yh = xr, yr
+                    S[-1], y_arr[-1] = xr, yr
+                # Contraction
+                xc = xm + gamma * (xh - xm)
+                yc = f(xc)
+                if yc > yh:
+                    # Shrink
+                    for i in range(1, len(S)):
+                        S[i] = (S[i] + xl) / 2
+                        y_arr[i] = f(S[i])
+                else:
+                    S[-1], y_arr[-1] = xc, yc
+            else:
+                S[-1], y_arr[-1] = xr, yr
+            simplex_history.append(S.copy())
+            delta = np.std(y_arr, ddof=0)
+        return S[np.argmin(y_arr)], simplex_history
 
     def pathlength(self, x):
         epsilon = 1e-12
@@ -99,7 +157,7 @@ class search_space():
             )
         return penalty
 
-    def obj_func(self, x, eta=1, lam=0, mu=0, alpha=0.1, order=1):
+    def obj_func(self, x, eta, lam=0, mu=0, alpha=0.1, order=1):
         def f(x):
             x = x.reshape(-1, 2)
             av = self.avoidance2(x, alpha)
@@ -113,6 +171,32 @@ class search_space():
                 return f(x), grad(f)(x)
             case 2:
                 return f(x), grad(f)(x), hessian(f)(x)
+
+    def random_placements(self, n_objects = 3):
+        def overlaps(new_center, new_radius, existing):
+            for obs in existing:
+                dist = ((new_center[0] - obs.center_point[0])**2 + (new_center[1] - obs.center_point[1])**2)**0.5
+                if dist < new_radius + obs.radius:
+                    return True
+            return False
+
+        print(f"=== creating {n_objects} objects ===")
+
+        dir_vec = xn - x0
+        length = (dir_vec[0]**2 + dir_vec[1]**2)**0.5
+        unit = dir_vec / length
+        perp = anp.array([-unit[1], unit[0]])
+
+        for _ in range(n_objects):
+            radius = random.randint(10,15)
+            while True:
+                t = random.uniform(0.15, 0.85)
+                offset = random.uniform(-20, 20)
+                coord = x0 + t * dir_vec + offset * perp
+                coord = [float(coord[0]), float(coord[1])]
+                if not overlaps(coord, radius, search.obstacles):
+                    break
+            search.add_obstacle(circular_object(anp.array(coord), radius))
 
     def plot_convergence(self, vals: list):
         plt.figure()
@@ -158,54 +242,41 @@ class circular_object():
         return f"circular_object(c={self.center_point}, d={self.radius})"
 
 
+
+## === CONFIG === ##
+
+steps = 100
+max_iterations = 2000
+
 x0= anp.array([1, 1])
 xn = anp.array([100, 100])
-
 search = search_space(x0, xn)
 
+# replicate our issue
+# search.add_obstacle(circular_object(anp.array([50,50]), 30))
 
+# basic test
+search.add_obstacle(circular_object(anp.array([55,45]), 20))
 
-def random_placement(n_objects = 3):
-    def overlaps(new_center, new_radius, existing):
-        for obs in existing:
-            dist = ((new_center[0] - obs.center_point[0])**2 + (new_center[1] - obs.center_point[1])**2)**0.5
-            if dist < new_radius + obs.radius:
-                return True
-        return False
-
-    print(f"=== creating {n_objects} objects ===")
-
-    dir_vec = xn - x0
-    length = (dir_vec[0]**2 + dir_vec[1]**2)**0.5
-    unit = dir_vec / length
-    perp = anp.array([-unit[1], unit[0]])
-    
-    for _ in range(n_objects):
-        radius = random.randint(10,15)
-        while True:
-            t = random.uniform(0.15, 0.85)
-            offset = random.uniform(-20, 20)
-            coord = x0 + t * dir_vec + offset * perp
-            coord = [float(coord[0]), float(coord[1])]
-            if not overlaps(coord, radius, search.obstacles):
-                break
-        search.add_obstacle(circular_object(anp.array(coord), radius))
-
-
-
-
-# replicate
-search.add_obstacle(circular_object(anp.array([50,50]), 30))
-
-n_objects = 5
-steps = 100
-max_iterations = 10
-
+# n_objects = 5
 # random_placement(n_objects)
+
+search.straigt_path(search.start, search.goal, steps)
+
+## === OPTIMIZATION ALGORITHMS === ##
+
 print(f"=== searching on {steps} steps ===")
-x, history = search.gradient_descent_path(eta = 1,lam=50, mu=10, alpha_step=1e-3, max_iter=max_iterations, steps=steps)
-# print(x)
-# print(history)
+
+x, history = search.gradient_descent_path(eta = 5, lam=50, mu=10, alpha_step=1e-3, max_iter=max_iterations)
+
+# x, history = search.newton_method(lam=50, mu=10, max_iter=max_iterations)
+
+
+
+
+
+
+
 
 # search.plot_convergence(history)
 search.plot()
