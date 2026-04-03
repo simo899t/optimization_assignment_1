@@ -2,6 +2,8 @@ import autograd.numpy as anp
 from autograd import grad
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import random
+
 
 class search_space():
     def __init__(self, start, goal):
@@ -13,21 +15,23 @@ class search_space():
     def add_obstacle(self, object: circular_object):
         self.obstacles.append(object)
         
-    def straigt_path(self, start, goal, steps=50):
+    def straigt_path(self, start, goal, steps):
         dir = goal - start
-        return [start + t * dir for t in anp.linspace(0, 1, steps)]
+        x = [start + t * dir for t in anp.linspace(0, 1, steps)]
+        self.trajectory = list(anp.array(x).flatten().reshape(-1, 2))
+        return x
 
-    def gradient_descent_path(self, eta=1, lam=0, mu=0, alpha_step=0.01, alpha=0.1, tol=1e-6, max_iter=1000):
-        x = anp.array(self.straigt_path(self.start, self.goal)).flatten()    # <- initial straigth path
+    def gradient_descent_path(self, eta=1, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000, steps = 100):
+        x = anp.array(self.straigt_path(self.start, self.goal, steps)).flatten()    # <- initial straigth path
         convergence_vals = []
-
         for i in range(max_iter):
             val, g = self.obj_func(x, eta, lam, mu, alpha)
             convergence_vals.append(val)
 
-            g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-3, 1e3}
+            g = anp.clip(g, -1e4, 1e4) # <- ensure that g in {1e-4, 1e4}
             x_new = x - alpha_step * g
-            # print(f"new trajectory {x_new.reshape(-1, 2)}")
+            if i % 10 == 0:
+                print(f"new trajectory {x_new.reshape(-1, 2)}", end='\r', flush=True)
 
             x_new[:2] = self.start
             x_new[-2:] = self.goal
@@ -138,49 +142,60 @@ class search_space():
         plt.show()
 
 class circular_object():
-    def __init__(self, center: np.array, radius: float):
+    def __init__(self, center: anp.array, radius: float):
         self.center_point = center
         self.radius = radius
 
     def __repr__(self):
         return f"circular_object(c={self.center_point}, d={self.radius})"
 
-    
 
-x0= np.array([1, 1])
-xn = np.array([100, 100])
+x0= anp.array([1, 1])
+xn = anp.array([100, 100])
 
 search = search_space(x0, xn)
 
-object1 = circular_object(np.array([40,30]), 10.0)
-search.add_obstacle(object1)
-object2 = circular_object(np.array([50,55]), 7.0) 
-search.add_obstacle(object2)
-object3 = circular_object(np.array([80,80]), 5.0)
-search.add_obstacle(object3)
 
-# search.straigt_path(search.start, search.goal)
 
-x = np.array(search.straigt_path(search.start, search.goal)).flatten()
+def random_placement(n_objects = 3):
+    def overlaps(new_center, new_radius, existing):
+        for obs in existing:
+            dist = ((new_center[0] - obs.center_point[0])**2 + (new_center[1] - obs.center_point[1])**2)**0.5
+            if dist < new_radius + obs.radius:
+                return True
+        return False
 
-# print(search.pathlength(x))
-# print(search.smoothness(x))
-# print(search.avoidance2(x, 0.1))
+    print(f"=== creating {n_objects} objects ===")
 
-# def f(x):
-#    x = x.reshape(-1, 2)
-#    av = search.avoidance2(x, 0.1)
-#    # av = self.avoidance1(traj)
-#    return search.pathlength(x) + 0.1 * search.smoothness(x) + 0.1 * av
-# 
-# print(f(x))
-# 
-# g = search.obj_func(x, eta=0, lam=0, mu=0, alpha=0.1)
-# print(g)
+    dir_vec = xn - x0
+    length = (dir_vec[0]**2 + dir_vec[1]**2)**0.5
+    unit = dir_vec / length
+    perp = anp.array([-unit[1], unit[0]])
+    
+    for _ in range(n_objects):
+        radius = random.randint(5,15)
+        while True:
+            t = random.uniform(0.15, 0.85)
+            offset = random.uniform(-30, 30)
+            coord = x0 + t * dir_vec + offset * perp
+            coord = [float(coord[0]), float(coord[1])]
+            if not overlaps(coord, radius, search.obstacles):
+                break
+        search.add_obstacle(circular_object(anp.array(coord), radius))
 
-# print(g)
 
-x, history = search.gradient_descent_path(eta = 1,lam=0.5, mu=5, alpha_step=1e-2, max_iter=100)
+
+
+# replicate
+# search.add_obstacle(circular_object(anp.array([50,50]), 30))
+
+n_objects = 5
+steps = 100
+max_iterations = 100
+
+random_placement(n_objects)
+print(f"=== searching on {steps} steps ===")
+x, history = search.gradient_descent_path(eta = 1,lam=50, mu=10, alpha_step=1e-3, max_iter=max_iterations, steps=steps)
 # print(x)
 # print(history)
 
