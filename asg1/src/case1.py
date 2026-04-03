@@ -25,7 +25,7 @@ class search_space():
         x = anp.array(self.straigt_path(self.start, self.goal, steps)).flatten()    # <- initial straigth path
         convergence_vals = []
         for i in range(max_iter):
-            val, g, h= self.obj_func(x, eta, lam, mu, alpha)
+            val, g = self.obj_func(x, eta, lam, mu, alpha, order=1)
             convergence_vals.append(val)
             # print(f"x = {val}")
             # print(f"first order derivative = {g}")
@@ -99,14 +99,20 @@ class search_space():
             )
         return penalty
 
-    def obj_func(self, x, eta=1, lam=0, mu=0, alpha=0.1):
+    def obj_func(self, x, eta=1, lam=0, mu=0, alpha=0.1, order=1):
         def f(x):
             x = x.reshape(-1, 2)
             av = self.avoidance2(x, alpha)
             # av = self.avoidance1(x)
             return eta * self.pathlength(x) + lam * self.smoothness(x) + mu * av
         
-        return f(x), grad(f)(x), hessian(f)(x)
+        match order:
+            case 0:
+                return f(x)
+            case 1:
+                return f(x), grad(f)(x)
+            case 2:
+                return f(x), grad(f)(x), hessian(f)(x)
 
     def plot_convergence(self, vals: list):
         plt.figure()
