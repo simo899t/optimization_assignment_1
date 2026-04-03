@@ -12,7 +12,7 @@ class search_space():
         self.obstacles = []
         self.trajectory = []
 
-    def add_obstacle(self, object: circular_object):
+    def add_obstacle(self, object):
         self.obstacles.append(object)
         
     def straigt_path(self, start, goal, steps):
@@ -95,11 +95,11 @@ class search_space():
             )
         return penalty
 
-    def obj_func(self, x, eta=0, lam=0, mu=0, alpha=0.1):
+    def obj_func(self, x, eta=1, lam=0, mu=0, alpha=0.1):
         def f(x):
             x = x.reshape(-1, 2)
             av = self.avoidance2(x, alpha)
-            # av = self.avoidance1(traj)
+            # av = self.avoidance1(x)
             return eta * self.pathlength(x) + lam * self.smoothness(x) + mu * av
         
         return f(x), grad(f)(x) # if avoidance2, else use aprox
@@ -187,13 +187,13 @@ def random_placement(n_objects = 3):
 
 
 # replicate
-# search.add_obstacle(circular_object(anp.array([50,50]), 30))
+search.add_obstacle(circular_object(anp.array([50,50]), 30))
 
 n_objects = 5
 steps = 100
-max_iterations = 100
+max_iterations = 400
 
-random_placement(n_objects)
+# random_placement(n_objects)
 print(f"=== searching on {steps} steps ===")
 x, history = search.gradient_descent_path(eta = 1,lam=50, mu=10, alpha_step=1e-3, max_iter=max_iterations, steps=steps)
 # print(x)
