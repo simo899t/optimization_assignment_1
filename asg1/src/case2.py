@@ -88,11 +88,10 @@ print(fc12_params[1].numel())
 
 # Training loop
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.AdamW(model.parameters(), lr=0.001)
+optimizer = optim.AdamW(model.parameters(), lr=0.01, weight_decay=1e-4)
 n_epochs = 10
 train_losses = []
 test_losses = []
-
 
 
 warmup_epochs = int(1/25 * n_epochs)
@@ -105,12 +104,6 @@ cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
 scheduler = torch.optim.lr_scheduler.SequentialLR(
     optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
 )
-
-
-
-
-
-
 
 
 step = 0
@@ -170,4 +163,10 @@ ax[1].grid(True)
 # Adjust layout and show the plot
 plt.tight_layout()
 # plt.show()
-plt.savefig('AdamW_10epochs_with_annealing.png')
+plt.savefig('AdamW_lr0.01_10epochs_with_annealing_and_weight_decay.png')
+
+# AdamW_10epochs_with_annealing_and_weight_decay = Loss: 0.00728 | Accuracy: 83.1999
+
+
+# AdamW_lr0.01_10epochs_with_annealing_and_weight_decay
+# Test set: Average loss: 0.004359391717612743,         Accuracy: 8989/10000 (89.88999938964844%)
