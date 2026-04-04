@@ -534,7 +534,7 @@ def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000):
 def main():
     start, goal = [1,1], [100,100]
     steps = 100
-    max_iterations = 10
+    max_iterations = 100000
 
     search = Nelder_Mead_Method(start = start, 
                                 goal = goal, 
