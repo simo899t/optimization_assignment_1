@@ -25,48 +25,139 @@ class search_space():
     def gradient_descent_path(self, eta, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000): # <- 1st order
         x = anp.array(self.trajectory).flatten()    # <- initial straigth path
         convergence_vals = []
-        for i in range(max_iter):
+        i = 0
+        last_vals = [0,0]
+        val = 1
+        # and not all(t == val for t in last_vals)
+        while i < max_iter:
             val, g = self.obj_func(x, eta, lam, mu, alpha, order=1)
             convergence_vals.append(val)
             # print(f"x = {val}")
             # print(f"first order derivative = {g}")
             # print(f"second order derivative = {h}")
-            g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
+            g = anp.clip(g, -1e2, 1e2) # <- ensure that g in {1e-4, 1e4}
             x_new = x - alpha_step * g
             if i % 10 == 0:
                 # print(f"new trajectory {x_new.reshape(-1, 2)}", end='\r', flush=True)
                 pass
-            print(i)
 
+            print(f"[{i},{val}]")
             x_new[:2] = self.start
             x_new[-2:] = self.goal
 
             x = x_new
+            i += 1
         self.trajectory = list(x.reshape(-1, 2))
         return x, convergence_vals
 
-    def newton_method(self, lam, mu, alpha=0.1, max_iter = 1000): # <- 2nd order
+    def newton_method(self, lam, mu, alpha=0.1, max_iter = 1000, step_size = 0.001): # <- 2nd order
         x = anp.array(self.trajectory).flatten()
         convergence_vals = []
+        best_solution = [[np.inf],[]]
 
         for i in range(max_iter):
-            val, g, h = self.obj_func(x, lam, mu, alpha, order=2)
+            val, g, h = self.obj_func(x, 1, lam, mu, alpha, order=2)
             convergence_vals.append(val)
-            g = anp.clip(g, -1e1, 1e1) # <- ensure that g in {1e-4, 1e4}
-            print(f"Current path: {x}")
-            print(f"{i}'th iteration")
+            g = anp.clip(g, -1e3, 1) # <- ensure that g in {1e-4, 1e4}
+            # h = anp.clip(h, -1e3, 1) # <- ensure that g in {1e-4, 1e4}
+            print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
+            # print(f"eigenvalues: {np.linalg.eigvals(h)}")
             # print(f"Gradient: {g}")
             # print(f"Hessian: {h}")
             # print(f"Inverted Hessian: {np.linalg.inv(h)}")
+            # print(f"x: {x.shape}    delta: {delta.shape}")
             delta = np.linalg.inv(h) @ g
-            print(f"Delta = {delta}")
-            x_new = x - delta
-
+            x_new = x - step_size * delta
+            x_new[:2] = self.start
+            x_new[-2:] = self.goal
             x = x_new
+            if val < best_solution[0][0]:
+                best_solution = [[val],x]
 
-        return x, convergence_vals
+        self.trajectory = list(x.reshape(-1, 2))
+        return best_solution[1], convergence_vals
+
+    def momentum_descent(self, lam, mu, alpha=0.1, beta=0.001, max_iter = 100, step_size=0.001): # <- 1st order
+        x = anp.array(self.trajectory).flatten()
+        momentum = np.zeros(len(x))
+        convergence_vals = []
+        best_solution = [[np.inf],[]]
+
+        for i in range(max_iter):
+            val, g = self.obj_func(x, 1, lam, mu, alpha, order=1)
+            convergence_vals.append(val)
+            g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
+            momentum = beta * momentum - step_size * g
+            x_new = x + momentum
 
 
+            x_new[:2] = self.start
+            x_new[-2:] = self.goal
+            x = x_new
+            if val < best_solution[0][0]:
+                best_solution = [[val],x]
+            print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
+
+        self.trajectory = list(x.reshape(-1, 2))
+        return best_solution[1], convergence_vals
+
+
+    def nesterov_momentum_descent(self, lam, mu, alpha=0.1, beta=0.001, max_iter = 100, step_size=0.001): # <- 1st order
+        x = anp.array(self.trajectory).flatten()
+        momentum = np.zeros(len(x))
+        convergence_vals = []
+        best_solution = [[np.inf],[]]
+
+        for i in range(max_iter):
+            # val, g = self.obj_func(x, 1, lam, mu, alpha, order=1)
+            val, g_lookahead = self.obj_func(x+beta*momentum, 1, lam, mu, alpha, order=1)
+            convergence_vals.append(val)
+            # g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
+            momentum = beta * momentum - step_size * g_lookahead
+            x_new = x + momentum
+
+
+            x_new[:2] = self.start
+            x_new[-2:] = self.goal
+            x = x_new
+            if val < best_solution[0][0]:
+                best_solution = [[val],x]
+            print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
+
+        self.trajectory = list(x.reshape(-1, 2))
+        return best_solution[1], convergence_vals
+
+
+    def adam(self, lam, mu, alpha=0.1, beta=0.01, max_iter = 100, step_size=0.01, gamma_v=0.9, gamma_s=0.999, eps=1e-8): # <- 1st order
+        x = anp.array(self.trajectory).flatten()
+        momentum = np.zeros(len(x))
+        squared_gradients = np.zeros(len(x))
+        convergence_vals = []
+        best_solution = [[np.inf],[]]
+
+        for i in range(max_iter):
+            val, g = self.obj_func(x, 1, lam, mu, alpha, order=1)
+            convergence_vals.append(val)
+            g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
+            momentum = beta * momentum - step_size * g
+            squared_gradients = gamma_s * squared_gradients + (1 - gamma_s) * np.multiply(g,g)
+            corrected_decaying_mom = momentum / (1 - gamma_v)
+            corrected_squared_gradients = squared_gradients / (1 - gamma_s)
+            x_new = x + (step_size / (eps + np.sqrt(corrected_squared_gradients))) * corrected_decaying_mom
+
+
+            x_new[:2] = self.start
+            x_new[-2:] = self.goal
+            x = x_new
+            if val < best_solution[0][0]:
+                best_solution = [[val],x]
+            print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
+
+        self.trajectory = list(x.reshape(-1, 2))
+        return best_solution[1], convergence_vals
+
+
+    """
     def nelder_mead(self, ): # <- 0-order
         #def nelder_mead(f, S, eps, max_iterations, alpha=1.0, beta=2.0, gamma=0.5):
         delta = float("inf")
@@ -109,6 +200,7 @@ class search_space():
             simplex_history.append(S.copy())
             delta = np.std(y_arr, ddof=0)
         return S[np.argmin(y_arr)], simplex_history
+        """
 
     def pathlength(self, x):
         epsilon = 1e-12
@@ -246,7 +338,7 @@ class circular_object():
 ## === CONFIG === ##
 
 steps = 100
-max_iterations = 2000
+max_iterations = 1000
 
 x0= anp.array([1, 1])
 xn = anp.array([100, 100])
@@ -258,8 +350,8 @@ search = search_space(x0, xn)
 # basic test
 search.add_obstacle(circular_object(anp.array([55,45]), 20))
 
-# n_objects = 5
-# random_placement(n_objects)
+#n_objects = 5
+#search.random_placements(n_objects)
 
 search.straigt_path(search.start, search.goal, steps)
 
@@ -267,18 +359,21 @@ search.straigt_path(search.start, search.goal, steps)
 
 print(f"=== searching on {steps} steps ===")
 
-x, history = search.gradient_descent_path(eta = 5, lam=50, mu=10, alpha_step=1e-3, max_iter=max_iterations)
+# x, history = search.gradient_descent_path(eta = 5, lam=1, mu=10, alpha_step=1e-4, max_iter=max_iterations)
 
-# x, history = search.newton_method(lam=50, mu=10, max_iter=max_iterations)
+# x, history = search.newton_method(lam=10, mu=10, max_iter=max_iterations)
 
-
-
-
-
+# x, history = search.momentum_descent(lam=10, mu=10, max_iter=max_iterations)
+# test -> [999,316.5307994083728] : Best solution: 316.5307994083728
 
 
+# x, history = search.nesterov_momentum_descent(lam=10, mu=10, max_iter=max_iterations)
 
-# search.plot_convergence(history)
+
+x, history = search.adam(lam=10, mu=10, max_iter=max_iterations)
+
+
+search.plot_convergence(history)
 search.plot()
 
 
