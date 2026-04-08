@@ -13,6 +13,7 @@ class search_space():
         self.goal = goal
         self.obstacles = []
         self.trajectory = []
+        self.convergence = []
 
     def add_obstacle(self, object):
         self.obstacles.append(object)
@@ -24,40 +25,26 @@ class search_space():
         # return x
 
     def gradient_descent_path(self, eta, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000): # <- 1st order
-        x = anp.array(self.trajectory).flatten()    # <- initial straigth path
-        convergence_vals = []
+        self.convergence = []
+        x = anp.array(self.trajectory).flatten()    # <- initial trajectory
         i = 0
-        last_vals = [0,0]
-        val = 1
-        # and not all(t == val for t in last_vals)
         while i < max_iter:
+            print(i)
             val, g = self.obj_func(x, eta, lam, mu, alpha, order=1)
-            convergence_vals.append(val)
-            # print(f"x = {val}")
-            # print(f"first order derivative = {g}")
-            # print(f"second order derivative = {h}")
-            g = anp.clip(g, -1e2, 1e2) # <- ensure that g in {1e-4, 1e4}
+            self.convergence.append(val)
+            
+            g = anp.clip(g, -1e2, 1e2) # clip gradient
             x_new = x - alpha_step * g
-            if i % 10 == 0:
-                # print(f"new trajectory {x_new.reshape(-1, 2)}", end='\r', flush=True)
-                pass
 
-            print(f"[{i},{val}]")
             x_new[:2] = self.start
             x_new[-2:] = self.goal
 
             x = x_new
             i += 1
         self.trajectory = list(x.reshape(-1, 2))
-        return x, convergence_vals
+        return x
          
     def strong_bracketing(self, x,  f, nabla, d, alpha=1, beta=1e-4, sigma=1):
-        """
-        Does strong bracketing.
-
-        Note that d=None by default sets it to -nabla(x0)
-        """
-
         y0, g0, y_prev, alpha_prev = f(x), nabla(x) @ d, None, 0
 
         # bracket phase
@@ -102,12 +89,12 @@ class search_space():
 
         f = lambda v: obj(v)
         nabla = grad(obj)
-
+        self.convergence = []
         x = anp.array(self.trajectory).flatten()    # <- initial straigth path
-        convergence_vals = []
         for i in range(max_iter):
+            print(i)
             g = nabla(x)
-            convergence_vals.append(f(x))
+            self.convergence.append(f(x))
             g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-3, 1e3}
             dir = -g
             alpha_step = self.strong_bracketing(x, f, nabla, d=dir, alpha=alpha, beta=beta, sigma=sigma)
@@ -122,15 +109,17 @@ class search_space():
 
             x = x_new
         self.trajectory = list(x.reshape(-1, 2))
-        return x, convergence_vals
+        return x
         
     def newton_method(self, lam, mu, alpha=0.1, max_iter = 1000): # <- 2nd order
         x = anp.array(self.trajectory).flatten()
-        convergence_vals = []
+        self.convergence = []
         best_solution = [[np.inf],[]]
 
         for i in range(max_iter):
+            print(i)
             val, g, h = self.obj_func(x, 1, lam, mu, alpha, order=2)
+<<<<<<< HEAD
             convergence_vals.append(val)
             g = anp.clip(g, -1e1, 1e1) # <- ensure that g in {1e-4, 1e4}
             eig, _ = np.linalg.eig(h)
@@ -150,6 +139,12 @@ class search_space():
             delta = np.linalg.inv(new_h) @ g
             
             # print(f"Delta = {delta}")
+=======
+            self.convergence.append(val)
+            g = anp.clip(g, -1e1, 1e1) # clip gradient
+            
+            delta = np.linalg.inv(h) @ g
+>>>>>>> 8f134df67dfde1b2d814e15f09140738078f825a
             
             x_new = x - delta
 
@@ -158,19 +153,20 @@ class search_space():
                 best_solution = [[val],x]
 
         self.trajectory = list(x.reshape(-1, 2))
-        return best_solution[1], convergence_vals
+        return best_solution[1]
 
-    def momentum_descent(self, lam, mu, alpha=0.1, beta=0.001, max_iter = 100, step_size=0.001): # <- 1st order
+    def momentum_descent(self, lam, mu, obj_alpha=0.1, beta=0.001, max_iter = 100, alpha_step=0.001): # <- 1st order
         x = anp.array(self.trajectory).flatten()
         momentum = np.zeros(len(x))
-        convergence_vals = []
         best_solution = [[np.inf],[]]
+        self.convergence = []
 
         for i in range(max_iter):
-            val, g = self.obj_func(x, 1, lam, mu, alpha, order=1)
-            convergence_vals.append(val)
+            print(i)
+            val, g = self.obj_func(x, 1, lam, mu, obj_alpha, order=1)
+            self.convergence.append(val)
             g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
-            momentum = beta * momentum - step_size * g
+            momentum = beta * momentum - alpha_step * g
             x_new = x + momentum
 
 
@@ -182,21 +178,21 @@ class search_space():
             print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
 
         self.trajectory = list(x.reshape(-1, 2))
-        return best_solution[1], convergence_vals
+        return best_solution[1]
 
 
-    def nesterov_momentum_descent(self, lam, mu, alpha=0.1, beta=0.001, max_iter = 100, step_size=0.001): # <- 1st order
+    def nesterov_momentum_descent(self, lam, mu, obj_alpha=0.1, beta=0.001, max_iter = 100, alpha_step=0.001): # <- 1st order
         x = anp.array(self.trajectory).flatten()
         momentum = np.zeros(len(x))
-        convergence_vals = []
         best_solution = [[np.inf],[]]
-
+        self.convergence = []
         for i in range(max_iter):
+            print(i)
             # val, g = self.obj_func(x, 1, lam, mu, alpha, order=1)
-            val, g_lookahead = self.obj_func(x+beta*momentum, 1, lam, mu, alpha, order=1)
-            convergence_vals.append(val)
+            val, g_lookahead = self.obj_func(x+beta*momentum, 1, lam, mu, obj_alpha, order=1)
+            self.convergence.append(val)
             # g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
-            momentum = beta * momentum - step_size * g_lookahead
+            momentum = beta * momentum - alpha_step * g_lookahead
             x_new = x + momentum
 
 
@@ -208,25 +204,26 @@ class search_space():
             print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
 
         self.trajectory = list(x.reshape(-1, 2))
-        return best_solution[1], convergence_vals
+        return best_solution[1]
 
 
-    def adam(self, lam, mu, alpha=0.1, beta=0.01, max_iter = 100, step_size=0.01, gamma_v=0.9, gamma_s=0.999, eps=1e-8): # <- 1st order
+    def adam(self, lam, mu, obj_alpha=0.1, beta=0.01, max_iter = 100, alpha_step=0.01, gamma_v=0.9, gamma_s=0.999, eps=1e-8): # <- 1st order
         x = anp.array(self.trajectory).flatten()
         momentum = np.zeros(len(x))
         squared_gradients = np.zeros(len(x))
-        convergence_vals = []
+        self.convergence = []
         best_solution = [[np.inf],[]]
 
         for i in range(max_iter):
-            val, g = self.obj_func(x, 1, lam, mu, alpha, order=1)
-            convergence_vals.append(val)
+            print(i)
+            val, g = self.obj_func(x, 1, lam, mu, obj_alpha, order=1)
+            self.convergence.append(val)
             g = anp.clip(g, -1e3, 1e3) # <- ensure that g in {1e-4, 1e4}
-            momentum = beta * momentum - step_size * g
+            momentum = beta * momentum - alpha_step * g
             squared_gradients = gamma_s * squared_gradients + (1 - gamma_s) * np.multiply(g,g)
             corrected_decaying_mom = momentum / (1 - gamma_v)
             corrected_squared_gradients = squared_gradients / (1 - gamma_s)
-            x_new = x + (step_size / (eps + np.sqrt(corrected_squared_gradients))) * corrected_decaying_mom
+            x_new = x + (alpha_step / (eps + np.sqrt(corrected_squared_gradients))) * corrected_decaying_mom
 
 
             x_new[:2] = self.start
@@ -237,27 +234,7 @@ class search_space():
             print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
 
         self.trajectory = list(x.reshape(-1, 2))
-        return best_solution[1], convergence_vals
-
-    def nelder_mead(self, eps, alpha=1.0, beta=2.0, eta=1, gamma=0.5, lam=1, mu=1, obj_alpha=0.1, max_iter=1000): # <- 0-order
-
-        x = anp.array(self.trajectory).flatten()
-        n = len(x)
-
-        def f(v):
-            return self.obj_func(v, eta, lam, mu, obj_alpha, order=0)
-
-        # Build initial simplex: perturb only interior waypoint coordinates.
-        # Skip start ([:2]) and end ([-2:]) — fixed boundary conditions.
-        step = 5
-        S = np.zeros((n + 1, n))
-        S[0] = x
-        for j in range(n):
-            vertex = x.copy()
-            if 2 <= j < n - 2:
-                vertex[j] += step
-            S[j + 1] = vertex
-        
+        return best_solution[1]
         
     def nelder_mead(self, eps, alpha=1.0, beta=2.0, eta=1, gamma=0.5, lam=1, mu=1, obj_alpha=0.1, max_iter=1000): # <- 0-order
 
@@ -279,7 +256,7 @@ class search_space():
             S[j + 1] = vertex
         delta = float("inf")
         y_arr = np.array([f(v) for v in S])
-        history = [f(x)]
+        self.convergence = [f(x)]
         i = 0
         while delta > eps and i <= max_iter:
             print(i)
@@ -319,7 +296,7 @@ class search_space():
             delta = np.std(y_arr, ddof=0)
         best = S[np.argmin(y_arr)]
         self.trajectory = list(best.reshape(-1, 2))
-        return best, history
+        return best
 
     def pathlength(self, x):
         epsilon = 1e-12
@@ -358,7 +335,6 @@ class search_space():
 
         def d(xi, obs):
             epsilon = 1e-12
-            # Can't call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.
             return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon) #anp.norm men finite 
 
         for xi in x:
@@ -383,51 +359,6 @@ class search_space():
             case 2:
                 return f(x), grad(f)(x), hessian(f)(x)
 
-    def random_placements(self, n_objects=3):
-        def overlaps(center, radius, existing):
-            for obs in existing:
-                dist = ((center[0] - obs.center_point[0])**2 + (center[1] - obs.center_point[1])**2)**0.5
-                if dist < radius + obs.radius + 5:
-                    return True
-            return False
-
-        dir_vec = self.goal - self.start
-        length = float((dir_vec[0]**2 + dir_vec[1]**2)**0.5)
-        unit = dir_vec / length
-        perp = anp.array([-unit[1], unit[0]])
-
-        for _ in range(n_objects):
-            radius = random.randint(8, 16)
-            for _ in range(200):
-                t = random.uniform(0.3, 0.7)
-                offset = random.uniform(-15, 15)
-                coord = self.start + t * dir_vec + offset * perp
-                coord = [float(coord[0]), float(coord[1])]
-                if not overlaps(coord, radius, self.obstacles):
-                    self.add_obstacle(circular_object(anp.array(coord), radius))
-                    break
-
-    def path_intersects_obstacles(self) -> bool:
-        """Returns True if no segment between adjacent trajectory points hits an obstacle."""
-        def segment_hits(a, b, obs):
-            ab = b - a
-            ab_len_sq = float(anp.dot(ab, ab))
-            if ab_len_sq == 0:
-                diff = obs.center_point - a
-                return float(anp.dot(diff, diff)) < obs.radius ** 2
-            ac = obs.center_point - a
-            t = max(0.0, min(1.0, float(anp.dot(ac, ab)) / ab_len_sq))
-            closest = a + t * ab
-            diff = obs.center_point - closest
-            return float(anp.dot(diff, diff)) < obs.radius ** 2
-
-        pts = [anp.array(p, dtype=float) for p in self.trajectory]
-        for obs in self.obstacles:
-            for a, b in zip(pts, pts[1:]):
-                if segment_hits(a, b, obs):
-                    return False
-        return True
-
     def plot_convergence(self, vals: list):
         plt.figure()
         plt.plot(vals)
@@ -435,8 +366,8 @@ class search_space():
         plt.ylabel("Objective value")
         plt.show()
 
-    def plot(self):
-        _, ax = plt.subplots(figsize=(10, 10))
+    def plot(self, save_path=None):
+        fig, ax = plt.subplots(figsize=(10, 10))
         ax.set_aspect("equal")
 
         for i, obs in enumerate(self.obstacles):
@@ -461,7 +392,10 @@ class search_space():
         ax.set_ylim(min(ys) - margin, max(ys) + margin)
 
         ax.legend()
-        plt.show()
+        if save_path:
+            fig.savefig(save_path)
+        else:
+            plt.show()
 
 class circular_object():
     def __init__(self, center: anp.array, radius: float):
@@ -483,51 +417,48 @@ def initialize(start, goal, test=1, steps = 100):
     search.straigt_path(search.start, search.goal, steps)
     match test:
         case 1:
-            # place n random obstacles in the searchspace
-            n_obstacles = 3
-            search.random_placements(n_obstacles)
-        case 2:
             # basic minimum test
             search.add_obstacle(circular_object(anp.array([40,30]), 10))
             search.add_obstacle(circular_object(anp.array([60,70]), 20))
-        case 3:
+        case 2:
             # replicate problem
             search.add_obstacle(circular_object(anp.array([50,50]), 30))
     return search
 
 def initialize_straight_line(start, goal, test=1, steps= 100):
     search = initialize(start, goal, test, steps)
-    print(f"Pass: {search.path_intersects_obstacles()}")
     return search
 
 def basic_GD(start, goal, test=1, steps= 100, max_iter=1000):
+    # best configs -> steps=100, iterations=1000, lam=50, mu=10, alpha=1, obj_alpha=1e-3
     search = initialize(start, goal, test, steps)
     search.gradient_descent_path(eta = 5, lam=50, mu=10, alpha_step=1e-3, max_iter=max_iter)
-    print(f"Pass: {search.path_intersects_obstacles()}")
     return search
 
-def GD_with_SB(start, goal, test=1, steps= 100, max_iter=1000):
-    search = initialize(start, goal, test)
-    search.gradient_descent_sb(alpha=1, obj_alpha=0.005, beta=1e-4, sigma=0.9, lam=2, mu=7, max_iter=max_iter)
-    print(f"Pass: {search.path_intersects_obstacles()}")
-    return search
-
-def GD_with_Nesterov(start, goal, test=1, steps= 100, max_iter=1000):
+def GD_with_SB(start, goal, test=1, steps= 100, max_iter=200):
+    # best configs -> steps=100, iterations=200, lam=2, mu=7, alpha=1, obj_alpha=0.005, beta=1e-4
     search = initialize(start, goal, test, steps)
-    search.gradient_descent_sb(alpha=1, obj_alpha=0.005, beta=1e-4, sigma=0.9, lam=2, mu=7, max_iter=max_iter)
-    print(f"Pass: {search.path_intersects_obstacles()}")
+    search.gradient_descent_sb(alpha=1, obj_alpha=0.005, beta=1e-4, sigma=0.9, lam=2, mu=5, max_iter=max_iter)
     return search
 
-def GD_with_Momemtum(start, goal, test=1, steps= 100, max_iter=1000):
+def GD_with_nesterov_momentum(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.gradient_descent_sb(alpha=1, obj_alpha=0.005, beta=1e-4, sigma=0.9, lam=2, mu=7, max_iter=max_iter)
-    print(f"Pass: {search.path_intersects_obstacles()}")
+    search.nesterov_momentum_descent(obj_alpha=0.005, beta=1e-4, alpha_step=0.001, lam=2, mu=7, max_iter=max_iter)
+    return search
+
+def GD_with_momemtum(start, goal, test=1, steps= 100, max_iter=1000):
+    search = initialize(start, goal, test, steps)
+    search.momentum_descent(alpha_step=0.001, obj_alpha=0.1, beta=1e-3, lam=10, mu=10, max_iter=max_iter)
+    return search
+
+def GD_adam(start, goal, test=1, steps= 100, max_iter=1000):
+    search = initialize(start, goal, test, steps)
+    search.adam(obj_alpha=0.005, alpha_step=0.01, beta=0.01,  lam=10, mu=10, max_iter=max_iter)
     return search
 
 def Newton_method(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
     search.newton_method(lam=50, mu=10, max_iter=max_iter)
-    print(f"Pass: {search.path_intersects_obstacles()}")
     return search
 
 def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000):
@@ -535,14 +466,14 @@ def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000):
     # best configs2 -> steps: 100, iterations: 500000 (500k), eps: 1e-6, eps: 1e-6, lam: 1, mu: 10
     search = initialize(start, goal, test, steps)
     search.nelder_mead(eps=1e-6, lam=1, mu=10, max_iter=max_iter)
-    print(f"Pass: {search.path_intersects_obstacles()}")
     return search
 
 def main():
     start, goal = [1,1], [100,100]
-    steps = 100
-    max_iterations = 100000
+    steps = None
+    max_iterations = None
 
+<<<<<<< HEAD
     search = Nelder_Mead_Method(start = start, 
                                 goal = goal, 
                                 steps = steps, 
@@ -550,6 +481,28 @@ def main():
 
     search.plot()
 test = np.array([1,2,-3])
+=======
+    #search = initialize_straight_line(start, goal, test=1, steps= 100)
+    #search.plot()
+    #search = basic_GD(start, goal, test=1, steps= 100, max_iter=1000)
+    #search.plot()
+    #search = GD_with_SB(start, goal, test=1, steps= 100, max_iter=500)
+    #search.plot()
+    #search = GD_with_nesterov_momentum(start, goal, test=1, steps= 100, max_iter=1000)
+    #search.plot()
+    #search = GD_with_momemtum(start, goal, test=1, steps= 100, max_iter=1000)
+    #search.plot()
+    #search = GD_adam(start, goal, test=1, steps= 100, max_iter=1000)
+    #search.plot()
+    #search = Newton_method(start, goal, test=1, steps= 100, max_iter=1000)
+    #search.plot()
+    #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps, max_iter=max_iterations)
+    #search.plot()
+    
+    # plot search.trajectory
+    # search.plot()
+
+>>>>>>> 8f134df67dfde1b2d814e15f09140738078f825a
 if __name__ == "__main__":
     print(np.transpose(np.diag(np.full(np.size(test),1))))
     print(np.transpose(np.diag(np.full(np.size(test),test))))
