@@ -7,6 +7,8 @@ from torchvision import datasets, transforms, utils
 import matplotlib.pyplot as plt
 import numpy as np
 from prettytable import PrettyTable
+from bs_scheduler import StepBS
+import time
 
 seed = 42
 torch.manual_seed(seed)
@@ -38,9 +40,35 @@ for X, y in test_loader:
     print(f"Shape of y: {y.shape} {y.dtype}")
     break
 
+# Create Dynamic Sample Size Method:
+"""
+class AccedingSequenceLengthSampler(Sampler[int]):
+    def __init__(self, data: List[str]) -> None:
+        self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __iter__(self) -> Iterator[int]:
+        sizes = torch.tensor([len(x) for x in self.data])
+        yield from torch.argsort(sizes).tolist()
+
+class AccedingSequenceLengthBatchSampler(Sampler[List[int]]):
+    def __init__(self, data: List[str], batch_size: int) -> None:
+        self.data = data
+        self.batch_size = batch_size
+    def __len__(self) -> int:
+        return (len(self.data) + self.batch_size - 1) // self.batch_size
+    def __iter__(self) -> Iterator[List[int]]:
+        sizes = torch.tensor([len(x) for x in self.data])
+        for batch in torch.chunk(torch.argsort(sizes), len(self)):
+            yield batch.tolist()
+    """
+
 # Hardware
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 print(f"Using {device} device")
+
 
 # Define the model
 class LeNet5(nn.Module):
@@ -77,8 +105,8 @@ def count_parameters(model):
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
-model = LeNet5()
-
+start = time.perf_counter()
+model = LeNet5().to(device)
 count_parameters(model)
 fc12_params = [p for name, p in model.named_parameters() if name in ['fc1.weight', 'fc2.weight']]
 print(fc12_params[0].numel())
@@ -88,10 +116,12 @@ print(fc12_params[1].numel())
 
 # Training loop
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.AdamW(model.parameters(), lr=0.01, weight_decay=1e-4)
-n_epochs = 10
+optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=2e-3)
+n_epochs = 50
+l2_lambda = 1e-5
 train_losses = []
 test_losses = []
+batch_scheduler = StepBS(train_loader, step_size=5, gamma=2, max_batch_size=64)
 
 
 warmup_epochs = int(1/25 * n_epochs)
@@ -105,38 +135,44 @@ scheduler = torch.optim.lr_scheduler.SequentialLR(
     optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
 )
 
-
 step = 0
 for epoch in range(n_epochs):
     model.train()
-    for i, (images, labels) in enumerate(train_loader):
+    for j, (images, labels) in enumerate(train_loader):
         optimizer.zero_grad()
+        images, labels = images.to(device), labels.to(device)
         output = model(images)
         loss = criterion(output, labels)
+        for layer in [model.fc1, model.fc2, model.fc3]:
+            loss += l2_lambda * torch.norm(layer.weight, p=2)
         loss.backward()
         optimizer.step()
         step += 1
         train_losses.append((step, loss.item()))
         print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
 
-    scheduler.step()
 
     model.eval()
     test_loss = 0
     correct = 0
     with torch.no_grad():
         for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
             output = model(images)
             test_loss += criterion(output, labels).item()
             pred = torch.argmax(output, dim=1)
             correct += pred.eq(labels).sum()
 
+
+    scheduler.step()
+    batch_scheduler.step()
     test_loss /= len(test_loader.dataset)
     test_losses.append((step, test_loss))
     print(f'Test set: Average loss: {test_loss}, \
         Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)}%)')
 
-
+stop = time.perf_counter()
+print(f"Time taken: {stop-start}")
 
 # plot train and test losses to file loss.png
 train_steps, train_loss = zip(*train_losses)
@@ -162,11 +198,40 @@ ax[1].grid(True)
 
 # Adjust layout and show the plot
 plt.tight_layout()
-# plt.show()
-plt.savefig('AdamW_lr0.01_10epochs_with_annealing_and_weight_decay.png')
+plt.show()
+# plt.savefig('AdamW_lr0.01_10epochs_with_annealing_and_weight_decay.png')
 
-# AdamW_10epochs_with_annealing_and_weight_decay = Loss: 0.00728 | Accuracy: 83.1999
+### Tests ### 
+# loss    | acc    | Epocs | tim | lr     | Loss/Decay | batchS | sS | gam | mxBtchSiz | staBa
+#----------------------------------------------------------------------------------------------
+# 0.00445 | 89.809 | 20    | 51  | 0.027  | D2e-3      | stepBS | 1  | 2   | 60.000    | 64 
+# 0.00888 | 90.099 | 10    | n/a | 0.027  | D2e-3      | stepBS | 2  | 2   | 256       | 32 
+# 0.00893 | 90.059 | 10    | n/a | 0.027  | D2e-3      | stepBS | 2  | 2   | 128       | 32 
+# 0.00434 | 90.459 | 10    | n/a | 0.025  | D2e-3      | n/a    | x  | x   | x         | 64 
+# 0.00438 | 90.230 | 10    | n/a | 0.300  | D2e-3      | n/a    | x  | x   | x         | 64 
+# 0.00428 | 89.900 | 10    | n/a | 0.015  | D2e-3      | n/a    | x  | x   | x         | 64 
+# 0.00599 | 85.860 | 10    | n/a | 0.100  | D2e-3      | n/a    | x  | x   | x         | 64 
+# 0.00435 | 89.889 | 10    | n/a | 0.010  | D2e-3      | n/a    | x  | x   | x         | 64 
+# 0.00425 | 90.610 | 10    | 44  | 0.0255 | D2e-3      | stepBS | 5  | 2   | 256       | 64 
+# 0.00421 | 90.540 | 10    | 45  | 0.0255 | D5e-3      | stepBS | 5  | 2   | 256       | 64 
+# 0.00421 | 90.529 | 10    | 47  | 0.0255 | L2_1e-5    | stepBS | 5  | 2   | 256       | 64 
+# 0.00428 | 90.470 | 10    | 47  | 0.0255 | L2_2e-5    | stepBS | 5  | 2   | 256       | 64 
+ 
 
 
-# AdamW_lr0.01_10epochs_with_annealing_and_weight_decay
-# Test set: Average loss: 0.004359391717612743,         Accuracy: 8989/10000 (89.88999938964844%)
+### TIME ### 
+# WITH DEVICE
+# optimizer = optim.AdamW(model.parameters(), lr=0.027, weight_decay=2e-3)
+# batch_scheduler = StepBS(train_loader, step_size=2, gamma=2, max_batch_size=256)
+# Tests:    Average loss:           Accuracy:           Time taken:
+# 1         0.00888083192           90.099998%          47.75820712
+# 2         0.00888083192           90.099998%          48.86876808
+# 3         0.00888083192           90.099998%          46.69077666
+
+# WITHOUT DEVICE
+# optimizer = optim.AdamW(model.parameters(), lr=0.027, weight_decay=2e-3)
+# batch_scheduler = StepBS(train_loader, step_size=2, gamma=2, max_batch_size=256)
+# Tests:    Average loss:           Accuracy:           Time taken:
+# 1         0.00886749339           89.919998%          92.64282050
+# 2         0.00886749339           89.919998%          93.87042083
+# 3         0.00886749339           89.9199981%         89.55276787

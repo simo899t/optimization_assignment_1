@@ -1,4 +1,5 @@
 import autograd.numpy as anp
+import time
 import numpy as np
 from autograd import grad, hessian
 import matplotlib.pyplot as plt
@@ -132,17 +133,23 @@ class search_space():
             val, g, h = self.obj_func(x, 1, lam, mu, alpha, order=2)
             convergence_vals.append(val)
             g = anp.clip(g, -1e1, 1e1) # <- ensure that g in {1e-4, 1e4}
-            
-            print(f"Current path: {x}")
-            print(f"{i}'th iteration")
+            eig, _ = np.linalg.eig(h)
+            new_h = np.diag(np.full(np.size(eig),1)) @ (np.diag(np.full(np.size(eig),np.absolute(eig))))  @ np.transpose(np.diag(np.full(np.size(eig),1)))
 
+            # print(f"Current path: {x}")
+            # print(f"{i}'th iteration")
+
+            print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
             # print(f"Gradient: {g}")
             # print(f"Hessian: {h}")
+            # print(f"Eigenvalues: {eig}")
+
+            # print(f"New Hessian: {new_h}")
             # print(f"Inverted Hessian: {np.linalg.inv(h)}")
+            # time.sleep(10000)
+            delta = np.linalg.inv(new_h) @ g
             
-            delta = np.linalg.inv(h) @ g
-            
-            print(f"Delta = {delta}")
+            # print(f"Delta = {delta}")
             
             x_new = x - delta
 
@@ -542,8 +549,11 @@ def main():
                                 max_iter=max_iterations)
 
     search.plot()
-
+test = np.array([1,2,-3])
 if __name__ == "__main__":
+    print(np.transpose(np.diag(np.full(np.size(test),1))))
+    print(np.transpose(np.diag(np.full(np.size(test),test))))
+    print(np.transpose(np.absolute(test)) @ np.diag(np.full(np.size(test),1)))
     main()
 
 
