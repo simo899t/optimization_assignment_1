@@ -3,7 +3,6 @@ import numpy as np
 from autograd import grad, hessian
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import random
 
 
 class search_space():
@@ -343,8 +342,8 @@ class search_space():
         plt.ylabel("Objective value")
         plt.show()
 
-    def plot(self, save_path=None):
-        fig, ax = plt.subplots(figsize=(10, 10))
+    def plot_single_dingle(self, save_path=None):
+        fig, (ax) = plt.subplots(figsize=(10, 10))
         ax.set_aspect("equal")
 
         for i, obs in enumerate(self.obstacles):
@@ -357,22 +356,51 @@ class search_space():
             tx = [p[0] for p in self.trajectory]
             ty = [p[1] for p in self.trajectory]
             ax.plot(tx, ty, "k.-", linewidth=1.5, markersize=6, label="trajectory")
-
+       
+        # ax.plot(tx, ty, "k.-", linewidth=1.5, markersize=6, label="trajectory")
         ax.plot(*self.start, "go", markersize=8, label="start")
         ax.plot(*self.goal, "bs", markersize=8, label="goal")
 
-        all_points = [self.start, self.goal] + [o.center_point for o in self.obstacles]
-        xs = [p[0] for p in all_points]
-        ys = [p[1] for p in all_points]
-        margin = 2
-        ax.set_xlim(min(xs) - margin, max(xs) + margin)
-        ax.set_ylim(min(ys) - margin, max(ys) + margin)
-
-        ax.legend()
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
+        fig.tight_layout()
         if save_path:
-            fig.savefig(save_path)
+            fig.savefig(save_path, bbox_inches="tight")
         else:
             plt.show()
+
+    def plot_mult(self, iterations, steps, save_path=None, trajectories=None):
+        fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, sharey=True, figsize=(15, 3.5))
+
+        fig_list = [ax1, ax2, ax3, ax4, ax5]
+
+
+        for ax in fig_list:
+            for i, obs in enumerate(self.obstacles):
+                circle = patches.Circle(obs.center_point, obs.radius, color="red", alpha=0.5)
+                ax.add_patch(circle)
+                ax.text(obs.center_point[0], obs.center_point[1], f"O{i+1}",
+                        ha="center", va="center", fontsize=9, fontweight="bold")
+
+        for i, ax in enumerate(fig_list):
+            if trajectories and i < len(trajectories) and trajectories[i]:
+                tx = [p[0] for p in trajectories[i]]
+                ty = [p[1] for p in trajectories[i]]
+                print(i)
+                ax.plot(tx, ty, "k.-", linewidth=1.5, markersize=6, label="trajectory")
+                if iterations[i] <= 0:
+                    ax.set_title(f'initial')
+                else:
+                    ax.set_title(f'{iterations[i]} iter, {steps[i]} steps')
+                ax.plot(*self.start, "go", markersize=8, label="start")
+                ax.plot(*self.goal, "bs", markersize=8, label="goal")
+
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
+        fig.tight_layout()
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+        else:
+            plt.show()
+
 
 class circular_object():
     def __init__(self, center: anp.array, radius: float):
@@ -381,8 +409,6 @@ class circular_object():
 
     def __repr__(self):
         return f"circular_object(c={self.center_point}, d={self.radius})"
-
-
 
 ## === OPTIMIZATION ALGORITHMS & CONFIGURATION === ##
 
@@ -447,8 +473,28 @@ def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000):
 
 def main():
     start, goal = [1,1], [100,100]
-    steps = None
-    max_iterations = None
+    
+    plot_trajectories = []
+
+    #iterations = [0,50,150,300,1000]
+    # steps = [100, 100, 100, 100, 100]
+    iterations = [0,1000,1000,1000,1000]
+    steps = [1, 10, 50, 100, 200]
+
+    search = initialize_straight_line(start, goal, test=1, steps= 100)
+    
+    plot_trajectories.append(search.trajectory)
+
+    for i in range(len(iterations)):
+        print(i)
+        
+        if iterations[i] > 0:
+            search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
+            plot_trajectories.append(search.trajectory)
+    
+    # print(f"two {plot_trajectories}")
+    
+    search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps)
 
     #search = initialize_straight_line(start, goal, test=1, steps= 100)
     #search.plot()
