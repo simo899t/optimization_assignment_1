@@ -368,8 +368,9 @@ class search_space():
         else:
             plt.show()
 
-    def plot_mult(self, iterations, steps, save_path=None, trajectories=None):
+    def plot_mult(self, iterations, steps, save_path=None, trajectories=None, title: str=None):
         fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, sharey=True, figsize=(15, 3.5))
+        fig.suptitle(title, fontsize=14)
 
         fig_list = [ax1, ax2, ax3, ax4, ax5]
 
@@ -479,22 +480,25 @@ def main():
     #iterations = [0,50,150,300,1000]
     # steps = [100, 100, 100, 100, 100]
     iterations = [0,1000,1000,1000,1000]
-    steps = [1, 10, 50, 100, 200]
-
-    search = initialize_straight_line(start, goal, test=1, steps= 100)
+    steps = [2, 10, 25, 50, 100]
+    title = "Comparing Gradient Descent with Strong Bracketing on step-count"
+    search = initialize_straight_line(start, goal, test=1, steps=steps[0])
     
     plot_trajectories.append(search.trajectory)
 
     for i in range(len(iterations)):
-        print(i)
-        
         if iterations[i] > 0:
-            search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
+            #search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
+            search = GD_with_SB(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
+            #search = GD_with_nesterov_momentum(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
+            #search = GD_with_momemtum(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
+            #search = Newton_method(start, goal, test=1, steps= stepsw[i], max_iter=iterations[i])
+            #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i])
             plot_trajectories.append(search.trajectory)
     
     # print(f"two {plot_trajectories}")
     
-    search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps)
+    search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, title=title)
 
     #search = initialize_straight_line(start, goal, test=1, steps= 100)
     #search.plot()
