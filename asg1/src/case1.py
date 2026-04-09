@@ -23,16 +23,16 @@ class search_space():
         self.trajectory = list(anp.array(x).flatten().reshape(-1, 2))
         # return x
 
-    def gradient_descent_path(self, eta=1, obj_alpha=0.05, lam=10, mu=10, alpha_step=0.01, max_iter=1000): # <- 1st order
+    def gradient_descent_path(self, eta, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000): # <- 1st order
         self.convergence = []
         x = anp.array(self.trajectory).flatten()    # <- initial trajectory
         i = 0
         while i < max_iter:
             print(i)
-            val, g = self.obj_func(x, eta, lam, mu, obj_alpha, order=1)
+            val, g = self.obj_func(x, eta, lam, mu, alpha, order=1)
             self.convergence.append(val)
             
-            #g = anp.clip(g, -1e3, 1e3) # clip gradient
+            g = anp.clip(g, -1e2, 1e2) # clip gradient
             x_new = x - alpha_step * g
 
             x_new[:2] = self.start
@@ -147,7 +147,7 @@ class search_space():
         self.trajectory = list(x.reshape(-1, 2))
         return best_solution[1]
 
-    def momentum_descent(self, lam, mu, obj_alpha=0.01, beta=0.01, max_iter = 100, alpha_step=1): # <- 1st order
+    def momentum_descent(self, lam, mu, obj_alpha=0.1, beta=0.001, max_iter = 100, alpha_step=0.001): # <- 1st order
         x = anp.array(self.trajectory).flatten()
         momentum = np.zeros(len(x))
         best_solution = [[np.inf],[]]
@@ -173,7 +173,7 @@ class search_space():
         return best_solution[1]
 
 
-    def nesterov_momentum_descent(self, lam=2, mu=5, obj_alpha=0.1, beta=0.1, max_iter = 100, alpha_step=1): # <- 1st order
+    def nesterov_momentum_descent(self, lam, mu, obj_alpha=0.1, beta=0.001, max_iter = 100, alpha_step=0.001): # <- 1st order
         x = anp.array(self.trajectory).flatten()
         momentum = np.zeros(len(x))
         best_solution = [[np.inf],[]]
@@ -384,9 +384,8 @@ class search_space():
         else:
             plt.show()
 
-    def plot_mult(self, iterations, steps, save_path=None, trajectories=None, title: str=None):
+    def plot_mult(self, iterations, steps, save_path=None, trajectories=None):
         fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, sharey=True, figsize=(15, 3.5))
-        fig.suptitle(title, fontsize=14)
 
         fig_list = [ax1, ax2, ax3, ax4, ax5]
 
@@ -431,7 +430,7 @@ class circular_object():
 
 
 def initialize(start, goal, test=1, steps = 100):
-    x0 = anp.array(start)
+    x0= anp.array(start)
     xn = anp.array(goal)
     search = search_space(x0, xn)
     search.straigt_path(search.start, search.goal, steps)
@@ -445,16 +444,6 @@ def initialize(start, goal, test=1, steps = 100):
             search.add_obstacle(circular_object(anp.array([50,50]), 30))
     return search
 
-
-
-
-### OBJECTIVE FUNCTION PARAMETERS
-obj_alpha = 0.02
-lam = 2
-mu = 5
-
-
-
 def initialize_straight_line(start, goal, test=1, steps= 100):
     search = initialize(start, goal, test, steps)
     return search
@@ -462,39 +451,40 @@ def initialize_straight_line(start, goal, test=1, steps= 100):
 def basic_GD(start, goal, test=1, steps= 100, max_iter=1000):
     # best configs -> steps=100, iterations=1000, lam=50, mu=10, alpha=1, obj_alpha=1e-3
     search = initialize(start, goal, test, steps)
-    search.gradient_descent_path(eta = 1, obj_alpha=obj_alpha, lam=lam, mu=mu, alpha_step=1e-2, max_iter=max_iter)
+    search.gradient_descent_path(eta = 5, lam=50, mu=10, alpha_step=1e-3, max_iter=max_iter)
     return search
 
 def GD_with_SB(start, goal, test=1, steps= 100, max_iter=200):
     # best configs -> steps=100, iterations=200, lam=2, mu=7, alpha=1, obj_alpha=0.005, beta=1e-4
     search = initialize(start, goal, test, steps)
-    search.gradient_descent_sb(alpha=1e-3, obj_alpha=obj_alpha, beta=1e-4, sigma=0.9, lam=lam, mu=mu, max_iter=max_iter)
+    search.gradient_descent_sb(alpha=1, obj_alpha=0.005, beta=1e-4, sigma=0.9, lam=2, mu=5, max_iter=max_iter)
     return search
 
 def GD_with_nesterov_momentum(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.nesterov_momentum_descent(obj_alpha=obj_alpha, beta=1e-3, alpha_step=1e-3, lam=lam, mu=mu, max_iter=max_iter)
+    search.nesterov_momentum_descent(obj_alpha=0.005, beta=1e-4, alpha_step=0.001, lam=2, mu=7, max_iter=max_iter)
     return search
 
 def GD_with_momemtum(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.momentum_descent(alpha_step=1e-3, obj_alpha=obj_alpha, beta=1e-3, lam=lam, mu=mu, max_iter=max_iter)
+    search.momentum_descent(alpha_step=0.001, obj_alpha=0.1, beta=1e-3, lam=10, mu=10, max_iter=max_iter)
     return search
+
 def GD_adam(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.adam(obj_alpha=obj_alpha, alpha_step=1e-3, beta=1e-3,  lam=lam, mu=mu, max_iter=max_iter)
+    search.adam(obj_alpha=0.005, alpha_step=0.01, beta=0.01,  lam=10, mu=10, max_iter=max_iter)
     return search
 
 def Newton_method(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.newton_method(alpha=obj_alpha, lam=lam, mu=mu, max_iter=max_iter)
+    search.newton_method(lam=50, mu=10, max_iter=max_iter)
     return search
 
 def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000):
     # best configs -> steps: 15, iterations: 5000, eps: 1e-6, lam: 1, mu: 10
     # best configs2 -> steps: 100, iterations: 500000 (500k), eps: 1e-6, eps: 1e-6, lam: 1, mu: 10
     search = initialize(start, goal, test, steps)
-    search.nelder_mead(eps=1e-6, obj_alpha=obj_alpha, lam=1, mu=10, max_iter=max_iter)
+    search.nelder_mead(eps=1e-6, lam=1, mu=10, max_iter=max_iter)
     return search
 
 def main():
@@ -502,35 +492,38 @@ def main():
     
     plot_trajectories = []
 
-    # iterations = [0,100,500,1000,10000]
-    # steps = [100, 100, 100, 100, 100]
-    iterations = [0,100,1000,1000,1000]
-    steps = [2, 10, 25, 50, 100] # iterations = [0,1000]
-    # steps = [2, 50]
-    title = "Comparing Gradient Descent with Nesterov Momentum"
-    search = initialize_straight_line(start, goal, test=1, steps=steps[0])
+    iterations = [0,500,1500,5000,10000]
+    steps = [50, 50, 50, 50, 50]
+    # iterations = [0,100,100,100,100]
+    # steps = [1, 10, 50, 100, 200]
+
+    search = initialize_straight_line(start, goal, test=1, steps= steps[0])
     
     plot_trajectories.append(search.trajectory)
 
     for i in range(len(iterations)):
+        print(i)
+        
         if iterations[i] > 0:
-            # search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
-            # search = GD_with_SB(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
-            # search = GD_with_nesterov_momentum(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
-            search = GD_with_momemtum(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
-            #search = Newton_method(start, goal, test=1, steps= stepsw[i], max_iter=iterations[i])
-            #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i])
+            search = Nelder_Mead_Method(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
             plot_trajectories.append(search.trajectory)
     
     # print(f"two {plot_trajectories}")
     
-    search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, title=title)
+    search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps)
 
-    #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps, max_iter=iterations)
+    search = Nelder_Mead_Method(start = start, 
+                                goal = goal, 
+                                steps = steps, 
+                                max_iter=max_iter)
 
-    #search.plot()
+    search.plot()
+test = np.array([1,2,-3])
 
 if __name__ == "__main__":
+    print(np.transpose(np.diag(np.full(np.size(test),1))))
+    print(np.transpose(np.diag(np.full(np.size(test),test))))
+    print(np.transpose(np.absolute(test)) @ np.diag(np.full(np.size(test),1)))
     main()
 
 
