@@ -116,28 +116,30 @@ print(fc12_params[1].numel())
 
 # Training loop
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=2e-3)
-n_epochs = 50
-l2_lambda = 1e-5
+optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=3e-2)
+n_epochs = 1000
+l2_lambda = 1e-2
 train_losses = []
 test_losses = []
-batch_scheduler = StepBS(train_loader, step_size=5, gamma=2, max_batch_size=64)
+batch_scheduler = StepBS(train_loader, step_size=20, gamma=2, max_batch_size=60000)
 
 
-warmup_epochs = int(1/25 * n_epochs)
+# warmup_epochs = int(1/50 * n_epochs)
+warmup_epochs = 2
 warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-    optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
+  optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
     )
 cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=n_epochs- warmup_epochs                               # do CosineAnnealingLR
-)
+   optimizer, T_max=n_epochs- warmup_epochs                               # do CosineAnnealingLR
+    )
 scheduler = torch.optim.lr_scheduler.SequentialLR(
-    optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
-)
+   optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
+    )
 
 step = 0
 for epoch in range(n_epochs):
     model.train()
+    avg_train_loss = 0.0
     for j, (images, labels) in enumerate(train_loader):
         optimizer.zero_grad()
         images, labels = images.to(device), labels.to(device)
@@ -148,9 +150,11 @@ for epoch in range(n_epochs):
         loss.backward()
         optimizer.step()
         step += 1
-        train_losses.append((step, loss.item()))
+        avg_train_loss += loss.item()
         print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
 
+    avg_train_loss /= len(train_loader)
+    train_losses.append((epoch+1, avg_train_loss))
 
     model.eval()
     test_loss = 0
@@ -163,11 +167,10 @@ for epoch in range(n_epochs):
             pred = torch.argmax(output, dim=1)
             correct += pred.eq(labels).sum()
 
-
     scheduler.step()
     batch_scheduler.step()
     test_loss /= len(test_loader.dataset)
-    test_losses.append((step, test_loss))
+    test_losses.append((epoch+1, test_loss))
     print(f'Test set: Average loss: {test_loss}, \
         Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)}%)')
 
@@ -175,22 +178,23 @@ stop = time.perf_counter()
 print(f"Time taken: {stop-start}")
 
 # plot train and test losses to file loss.png
-train_steps, train_loss = zip(*train_losses)
-test_steps, test_loss = zip(*test_losses)
+train_epochs, train_loss = zip(*train_losses)
+test_epochs, test_loss = zip(*test_losses)
 
 fig, ax = plt.subplots(2, 1, figsize=(8, 6), sharex=True)  # sharex aligns x-axes
 
 # Plot the first
-ax[0].plot(train_steps, train_loss, label="Train Loss", color="blue")
+ax[0].plot(train_epochs, train_loss, label="Train Loss", color="blue")
 ax[0].set_ylabel("Loss")
 ax[0].legend()
 ax[0].grid(True)
 
 # Plot the second
-ax[1].plot(test_steps, test_loss, label="Test Loss, Average", color="red")
-interval = int(np.ceil(len(train_dataset)/batch_size))
-ax[1].set_xticks(range(0,interval*(n_epochs+1),interval))
-ax[1].set_xticklabels(range(n_epochs+1))
+ax[1].plot(test_epochs, test_loss, label="Test Loss, Average", color="red")
+# interval = int(np.ceil(len(train_dataset)/batch_size))
+# ax[1].set_xticks(range(0,interval*(n_epochs+1),interval))
+# ax[1].set_xticklabels(range(n_epochs+1))
+ax[1].set_xticks(range(1, n_epochs + 1))
 ax[1].set_xlabel("Epoch")
 ax[1].set_ylabel("Loss")
 ax[1].legend()
