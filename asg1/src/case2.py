@@ -10,65 +10,6 @@ from prettytable import PrettyTable
 from bs_scheduler import StepBS
 import time
 
-seed = 42
-torch.manual_seed(seed)
-#random.seed(seed)
-np.random.seed(seed)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
-# Download the MNIST dataset
-transform = transforms.ToTensor()
-train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
-test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
-
-print("number of training samples: " + str(len(train_dataset)) + "\n" +
-      "number of testing samples: " + str(len(test_dataset)))
-
-print("datatype of the 1st training sample: ", train_dataset[0][0].type())
-print("size of the 1st training sample: ", train_dataset[0][0].size())
-
-batch_size = 64
-
-# Create data loaders.
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
-
-# Verify size of batches
-for X, y in test_loader:
-    print(f"Shape of X [N, C, H, W]: {X.shape}")
-    print(f"Shape of y: {y.shape} {y.dtype}")
-    break
-
-# Create Dynamic Sample Size Method:
-"""
-class AccedingSequenceLengthSampler(Sampler[int]):
-    def __init__(self, data: List[str]) -> None:
-        self.data = data
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __iter__(self) -> Iterator[int]:
-        sizes = torch.tensor([len(x) for x in self.data])
-        yield from torch.argsort(sizes).tolist()
-
-class AccedingSequenceLengthBatchSampler(Sampler[List[int]]):
-    def __init__(self, data: List[str], batch_size: int) -> None:
-        self.data = data
-        self.batch_size = batch_size
-    def __len__(self) -> int:
-        return (len(self.data) + self.batch_size - 1) // self.batch_size
-    def __iter__(self) -> Iterator[List[int]]:
-        sizes = torch.tensor([len(x) for x in self.data])
-        for batch in torch.chunk(torch.argsort(sizes), len(self)):
-            yield batch.tolist()
-    """
-
-# Hardware
-device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-print(f"Using {device} device")
-
 
 # Define the model
 class LeNet5(nn.Module):
@@ -105,121 +46,198 @@ def count_parameters(model):
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
-start = time.perf_counter()
-model = LeNet5().to(device)
-count_parameters(model)
-fc12_params = [p for name, p in model.named_parameters() if name in ['fc1.weight', 'fc2.weight']]
-print(fc12_params[0].numel())
-print(fc12_params[1].numel())
 
-# raise SystemExit
+if __name__ == '__main__':
+    seed = 42
+    torch.manual_seed(seed)
+    #random.seed(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.benchmark = True  # windows test
 
-# Training loop
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=2e-3)
-n_epochs = 50
-l2_lambda = 1e-5
-train_losses = []
-test_losses = []
-batch_scheduler = StepBS(train_loader, step_size=5, gamma=2, max_batch_size=64)
+    # Download the MNIST dataset
+    transform = transforms.ToTensor()
+    train_dataset = datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
+    test_dataset = datasets.FashionMNIST(root='./data', train=False, download=True, transform=transform)
+
+    print("number of training samples: " + str(len(train_dataset)) + "\n" +
+          "number of testing samples: " + str(len(test_dataset)))
+
+    print("datatype of the 1st training sample: ", train_dataset[0][0].type())
+    print("size of the 1st training sample: ", train_dataset[0][0].size())
+
+    batch_size = 512
+    max_batch_size = 2048
+    print(f"starting batch_size: ", batch_size, " and growing to: ", max_batch_size)
+
+    # Hardware
+    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    print(f"Using {device} device")
+
+    # Create data loaders.
+    num_w = 4 if device == 'cuda' else 0
+    pin = device == 'cuda'
+    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_w, pin_memory=pin, persistent_workers=(num_w > 0))
+    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_w, pin_memory=pin, persistent_workers=(num_w > 0))
+
+    # Verify size of batches
+    for X, y in test_loader:
+        print(f"Shape of X [N, C, H, W]: {X.shape}")
+        print(f"Shape of y: {y.shape} {y.dtype}")
+        break
+
+    # Create Dynamic Sample Size Method:
+    """
+    class AccedingSequenceLengthSampler(Sampler[int]):
+        def __init__(self, data: List[str]) -> None:
+            self.data = data
+
+        def __len__(self) -> int:
+            return len(self.data)
+
+        def __iter__(self) -> Iterator[int]:
+            sizes = torch.tensor([len(x) for x in self.data])
+            yield from torch.argsort(sizes).tolist()
+
+    class AccedingSequenceLengthBatchSampler(Sampler[List[int]]):
+        def __init__(self, data: List[str], batch_size: int) -> None:
+            self.data = data
+            self.batch_size = batch_size
+        def __len__(self) -> int:
+            return (len(self.data) + self.batch_size - 1) // self.batch_size
+        def __iter__(self) -> Iterator[List[int]]:
+            sizes = torch.tensor([len(x) for x in self.data])
+            for batch in torch.chunk(torch.argsort(sizes), len(self)):
+                yield batch.tolist()
+        """
+
+    start = time.perf_counter()
+    model = LeNet5().to(device)
+    count_parameters(model)
+    fc12_params = [p for name, p in model.named_parameters() if name in ['fc1.weight', 'fc2.weight']]
+    print(fc12_params[0].numel())
+    print(fc12_params[1].numel())
+
+    # raise SystemExit
+
+    # Training loop
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=2e-3)
+    n_epochs = 50
+    l2_lambda = 1e-4
+    train_losses = []
+    test_losses = []
+    batch_scheduler = StepBS(train_loader, step_size=20, gamma=2, max_batch_size=max_batch_size)
 
 
-warmup_epochs = int(1/25 * n_epochs)
-warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-    optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
+    warmup_epochs = int(1/25 * n_epochs)
+    warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
+        )
+    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=n_epochs- warmup_epochs                               # do CosineAnnealingLR
     )
-cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=n_epochs- warmup_epochs                               # do CosineAnnealingLR
-)
-scheduler = torch.optim.lr_scheduler.SequentialLR(
-    optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
-)
-
-step = 0
-for epoch in range(n_epochs):
-    model.train()
-    for j, (images, labels) in enumerate(train_loader):
-        optimizer.zero_grad()
-        images, labels = images.to(device), labels.to(device)
-        output = model(images)
-        loss = criterion(output, labels)
-        for layer in [model.fc1, model.fc2, model.fc3]:
-            loss += l2_lambda * torch.norm(layer.weight, p=2)
-        loss.backward()
-        optimizer.step()
-        step += 1
-        train_losses.append((step, loss.item()))
-        print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
+    )
 
 
-    model.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for images, labels in test_loader:
+    scaler = torch.amp.GradScaler('cuda') if device == 'cuda' else None # windows test
+
+    step = 0
+    for epoch in range(n_epochs):
+        model.train()
+        for j, (images, labels) in enumerate(train_loader):
+            #optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True) # windows test
             images, labels = images.to(device), labels.to(device)
-            output = model(images)
-            test_loss += criterion(output, labels).item()
-            pred = torch.argmax(output, dim=1)
-            correct += pred.eq(labels).sum()
+            with torch.amp.autocast(device_type=device, enabled=(device == 'cuda')):  # windows test
+                output = model(images)                                                # windows test
+                loss = criterion(output, labels)
+                for layer in [model.fc1, model.fc2, model.fc3]:
+                    loss += l2_lambda * torch.norm(layer.weight, p=2)
+            if scaler:  # windows test
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
+            step += 1
+            train_losses.append((step, loss.item()))
+            # if step % 10 == 0:
+            print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
 
 
-    scheduler.step()
-    batch_scheduler.step()
-    test_loss /= len(test_loader.dataset)
-    test_losses.append((step, test_loss))
-    print(f'Test set: Average loss: {test_loss}, \
-        Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)}%)')
+        model.eval()
+        test_loss = 0
+        correct = 0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                images, labels = images.to(device), labels.to(device)
+                output = model(images)
+                test_loss += criterion(output, labels).item()
+                pred = torch.argmax(output, dim=1)
+                correct += pred.eq(labels).sum()
 
-stop = time.perf_counter()
-print(f"Time taken: {stop-start}")
 
-# plot train and test losses to file loss.png
-train_steps, train_loss = zip(*train_losses)
-test_steps, test_loss = zip(*test_losses)
+        scheduler.step()
+        batch_scheduler.step()
+        test_loss /= len(test_loader.dataset)
+        test_losses.append((step, test_loss))
+        print(f'Test set: Average loss: {test_loss}, \
+            Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)}%)')
 
-fig, ax = plt.subplots(2, 1, figsize=(8, 6), sharex=True)  # sharex aligns x-axes
+    stop = time.perf_counter()
+    print(f"Time taken: {stop-start}")
 
-# Plot the first
-ax[0].plot(train_steps, train_loss, label="Train Loss", color="blue")
-ax[0].set_ylabel("Loss")
-ax[0].legend()
-ax[0].grid(True)
+    # plot train and test losses to file loss.png
+    train_steps, train_loss = zip(*train_losses)
+    test_steps, test_loss = zip(*test_losses)
 
-# Plot the second
-ax[1].plot(test_steps, test_loss, label="Test Loss, Average", color="red")
-interval = int(np.ceil(len(train_dataset)/batch_size))
-ax[1].set_xticks(range(0,interval*(n_epochs+1),interval))
-ax[1].set_xticklabels(range(n_epochs+1))
-ax[1].set_xlabel("Epoch")
-ax[1].set_ylabel("Loss")
-ax[1].legend()
-ax[1].grid(True)
+    fig, ax = plt.subplots(2, 1, figsize=(8, 6), sharex=True)  # sharex aligns x-axes
 
-# Adjust layout and show the plot
-plt.tight_layout()
-plt.show()
-# plt.savefig('AdamW_lr0.01_10epochs_with_annealing_and_weight_decay.png')
+    # Plot the first
+    ax[0].plot(train_steps, train_loss, label="Train Loss", color="blue")
+    ax[0].set_ylabel("Loss")
+    ax[0].legend()
+    ax[0].grid(True)
 
-### Tests ### 
+    # Plot the second
+    ax[1].plot(test_steps, test_loss, label="Test Loss, Average", color="red")
+    interval = int(np.ceil(len(train_dataset)/batch_size))
+    ax[1].set_xticks(range(0,interval*(n_epochs+1),interval))
+    ax[1].set_xticklabels(range(n_epochs+1))
+    ax[1].set_xlabel("Epoch")
+    ax[1].set_ylabel("Loss")
+    ax[1].legend()
+    ax[1].grid(True)
+
+    # Adjust layout and show the plot
+    plt.tight_layout()
+    plt.show()
+    # plt.savefig('AdamW_lr0.01_10epochs_with_annealing_and_weight_decay.png')
+
+### Tests ###
 # loss    | acc    | Epocs | tim | lr     | Loss/Decay | batchS | sS | gam | mxBtchSiz | staBa
 #----------------------------------------------------------------------------------------------
-# 0.00445 | 89.809 | 20    | 51  | 0.027  | D2e-3      | stepBS | 1  | 2   | 60.000    | 64 
-# 0.00888 | 90.099 | 10    | n/a | 0.027  | D2e-3      | stepBS | 2  | 2   | 256       | 32 
-# 0.00893 | 90.059 | 10    | n/a | 0.027  | D2e-3      | stepBS | 2  | 2   | 128       | 32 
-# 0.00434 | 90.459 | 10    | n/a | 0.025  | D2e-3      | n/a    | x  | x   | x         | 64 
-# 0.00438 | 90.230 | 10    | n/a | 0.300  | D2e-3      | n/a    | x  | x   | x         | 64 
-# 0.00428 | 89.900 | 10    | n/a | 0.015  | D2e-3      | n/a    | x  | x   | x         | 64 
-# 0.00599 | 85.860 | 10    | n/a | 0.100  | D2e-3      | n/a    | x  | x   | x         | 64 
-# 0.00435 | 89.889 | 10    | n/a | 0.010  | D2e-3      | n/a    | x  | x   | x         | 64 
-# 0.00425 | 90.610 | 10    | 44  | 0.0255 | D2e-3      | stepBS | 5  | 2   | 256       | 64 
-# 0.00421 | 90.540 | 10    | 45  | 0.0255 | D5e-3      | stepBS | 5  | 2   | 256       | 64 
-# 0.00421 | 90.529 | 10    | 47  | 0.0255 | L2_1e-5    | stepBS | 5  | 2   | 256       | 64 
-# 0.00428 | 90.470 | 10    | 47  | 0.0255 | L2_2e-5    | stepBS | 5  | 2   | 256       | 64 
- 
+# 0.00445 | 89.809 | 20    | 51  | 0.027  | D2e-3      | stepBS | 1  | 2   | 60.000    | 64
+# 0.00888 | 90.099 | 10    | n/a | 0.027  | D2e-3      | stepBS | 2  | 2   | 256       | 32
+# 0.00893 | 90.059 | 10    | n/a | 0.027  | D2e-3      | stepBS | 2  | 2   | 128       | 32
+# 0.00434 | 90.459 | 10    | n/a | 0.025  | D2e-3      | n/a    | x  | x   | x         | 64
+# 0.00438 | 90.230 | 10    | n/a | 0.300  | D2e-3      | n/a    | x  | x   | x         | 64
+# 0.00428 | 89.900 | 10    | n/a | 0.015  | D2e-3      | n/a    | x  | x   | x         | 64
+# 0.00599 | 85.860 | 10    | n/a | 0.100  | D2e-3      | n/a    | x  | x   | x         | 64
+# 0.00435 | 89.889 | 10    | n/a | 0.010  | D2e-3      | n/a    | x  | x   | x         | 64
+# 0.00425 | 90.610 | 10    | 44  | 0.0255 | D2e-3      | stepBS | 5  | 2   | 256       | 64
+# 0.00421 | 90.540 | 10    | 45  | 0.0255 | D5e-3      | stepBS | 5  | 2   | 256       | 64
+# 0.00421 | 90.529 | 10    | 47  | 0.0255 | L2_1e-5    | stepBS | 5  | 2   | 256       | 64
+# 0.00428 | 90.470 | 10    | 47  | 0.0255 | L2_2e-5    | stepBS | 5  | 2   | 256       | 64
 
 
-### TIME ### 
+
+### TIME ###
 # WITH DEVICE
 # optimizer = optim.AdamW(model.parameters(), lr=0.027, weight_decay=2e-3)
 # batch_scheduler = StepBS(train_loader, step_size=2, gamma=2, max_batch_size=256)
