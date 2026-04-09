@@ -1,4 +1,5 @@
 import autograd.numpy as anp
+import time
 import numpy as np
 from autograd import grad, hessian
 import matplotlib.pyplot as plt
@@ -117,10 +118,25 @@ class search_space():
         for i in range(max_iter):
             print(i)
             val, g, h = self.obj_func(x, 1, lam, mu, alpha, order=2)
-            self.convergence.append(val)
-            g = anp.clip(g, -1e1, 1e1) # clip gradient
+            convergence_vals.append(val)
+            g = anp.clip(g, -1e1, 1e1) # <- ensure that g in {1e-4, 1e4}
+            eig, _ = np.linalg.eig(h)
+            new_h = np.diag(np.full(np.size(eig),1)) @ (np.diag(np.full(np.size(eig),np.absolute(eig))))  @ np.transpose(np.diag(np.full(np.size(eig),1)))
+
+            # print(f"Current path: {x}")
+            # print(f"{i}'th iteration")
+
+            print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
+            # print(f"Gradient: {g}")
+            # print(f"Hessian: {h}")
+            # print(f"Eigenvalues: {eig}")
+
+            # print(f"New Hessian: {new_h}")
+            # print(f"Inverted Hessian: {np.linalg.inv(h)}")
+            # time.sleep(10000)
+            delta = np.linalg.inv(new_h) @ g
             
-            delta = np.linalg.inv(h) @ g
+            # print(f"Delta = {delta}")
             
             x_new = x - delta
 
@@ -500,27 +516,18 @@ def main():
     
     search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, title=title)
 
-    #search = initialize_straight_line(start, goal, test=1, steps= 100)
-    #search.plot()
-    #search = basic_GD(start, goal, test=1, steps= 100, max_iter=1000)
-    #search.plot()
-    #search = GD_with_SB(start, goal, test=1, steps= 100, max_iter=500)
-    #search.plot()
-    #search = GD_with_nesterov_momentum(start, goal, test=1, steps= 100, max_iter=1000)
-    #search.plot()
-    #search = GD_with_momemtum(start, goal, test=1, steps= 100, max_iter=1000)
-    #search.plot()
-    #search = GD_adam(start, goal, test=1, steps= 100, max_iter=1000)
-    #search.plot()
-    #search = Newton_method(start, goal, test=1, steps= 100, max_iter=1000)
-    #search.plot()
-    #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps, max_iter=max_iterations)
-    #search.plot()
-    
-    # plot search.trajectory
-    # search.plot()
+    search = Nelder_Mead_Method(start = start, 
+                                goal = goal, 
+                                steps = steps, 
+                                max_iter=max_iterations)
+
+    search.plot()
+test = np.array([1,2,-3])
 
 if __name__ == "__main__":
+    print(np.transpose(np.diag(np.full(np.size(test),1))))
+    print(np.transpose(np.diag(np.full(np.size(test),test))))
+    print(np.transpose(np.absolute(test)) @ np.diag(np.full(np.size(test),1)))
     main()
 
 
