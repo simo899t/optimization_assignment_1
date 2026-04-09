@@ -6,9 +6,19 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "autograd>=1.8.0",
+    "bs-scheduler>=1.0.2",
     "matplotlib>=3.10.8",
     "prettytable>=3.17.0",
     "seaborn>=0.13.2",
     "torch>=2.11.0",
     "torchvision>=0.26.0",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
