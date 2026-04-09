@@ -519,7 +519,7 @@ def main():
     search = Nelder_Mead_Method(start = start, 
                                 goal = goal, 
                                 steps = steps, 
-                                max_iter=max_iterations)
+                                max_iter=max_iter)
 
     search.plot()
 test = np.array([1,2,-3])
