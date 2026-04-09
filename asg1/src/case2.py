@@ -68,7 +68,7 @@ if __name__ == '__main__':
     print("size of the 1st training sample: ", train_dataset[0][0].size())
 
     batch_size = 512
-    max_batch_size = 2048
+    max_batch_size = 60000
     print(f"starting batch_size: ", batch_size, " and growing to: ", max_batch_size)
 
     # Hardware
@@ -87,31 +87,6 @@ if __name__ == '__main__':
         print(f"Shape of y: {y.shape} {y.dtype}")
         break
 
-    # Create Dynamic Sample Size Method:
-    """
-    class AccedingSequenceLengthSampler(Sampler[int]):
-        def __init__(self, data: List[str]) -> None:
-            self.data = data
-
-        def __len__(self) -> int:
-            return len(self.data)
-
-        def __iter__(self) -> Iterator[int]:
-            sizes = torch.tensor([len(x) for x in self.data])
-            yield from torch.argsort(sizes).tolist()
-
-    class AccedingSequenceLengthBatchSampler(Sampler[List[int]]):
-        def __init__(self, data: List[str], batch_size: int) -> None:
-            self.data = data
-            self.batch_size = batch_size
-        def __len__(self) -> int:
-            return (len(self.data) + self.batch_size - 1) // self.batch_size
-        def __iter__(self) -> Iterator[List[int]]:
-            sizes = torch.tensor([len(x) for x in self.data])
-            for batch in torch.chunk(torch.argsort(sizes), len(self)):
-                yield batch.tolist()
-        """
-
     start = time.perf_counter()
     model = LeNet5().to(device)
     count_parameters(model)
@@ -119,19 +94,17 @@ if __name__ == '__main__':
     print(fc12_params[0].numel())
     print(fc12_params[1].numel())
 
-    # raise SystemExit
-
     # Training loop
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=2e-3)
-    n_epochs = 50
-    l2_lambda = 1e-4
+    optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=3e-2)
+    n_epochs = 500
+    l2_lambda = 1e-2
     train_losses = []
     test_losses = []
-    batch_scheduler = StepBS(train_loader, step_size=20, gamma=2, max_batch_size=max_batch_size)
+    batch_scheduler = StepBS(train_loader, step_size=20, gamma=1.5, max_batch_size=max_batch_size)
 
 
-    warmup_epochs = int(1/25 * n_epochs)
+    warmup_epochs = 2
     warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
         )
@@ -148,6 +121,7 @@ if __name__ == '__main__':
     step = 0
     for epoch in range(n_epochs):
         model.train()
+        avg_train_loss = 0.0
         for j, (images, labels) in enumerate(train_loader):
             #optimizer.zero_grad()
             optimizer.zero_grad(set_to_none=True) # windows test
@@ -165,10 +139,12 @@ if __name__ == '__main__':
                 loss.backward()
                 optimizer.step()
             step += 1
-            train_losses.append((step, loss.item()))
+            avg_train_loss += loss.item()
             # if step % 10 == 0:
             print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
 
+        avg_train_loss /= len(train_loader)
+        train_losses.append((epoch+1, avg_train_loss))
 
         model.eval()
         test_loss = 0
@@ -181,11 +157,10 @@ if __name__ == '__main__':
                 pred = torch.argmax(output, dim=1)
                 correct += pred.eq(labels).sum()
 
-
         scheduler.step()
         batch_scheduler.step()
         test_loss /= len(test_loader.dataset)
-        test_losses.append((step, test_loss))
+        test_losses.append((epoch+1, test_loss))
         print(f'Test set: Average loss: {test_loss}, \
             Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset)}%)')
 
@@ -193,22 +168,28 @@ if __name__ == '__main__':
     print(f"Time taken: {stop-start}")
 
     # plot train and test losses to file loss.png
-    train_steps, train_loss = zip(*train_losses)
-    test_steps, test_loss = zip(*test_losses)
+    train_epochs, train_loss = zip(*train_losses)   
+    test_epochs, test_loss = zip(*test_losses)
 
     fig, ax = plt.subplots(2, 1, figsize=(8, 6), sharex=True)  # sharex aligns x-axes
 
+    # interval = int(np.ceil(len(train_dataset)/batch_size))
+    # tick_positions = list(range(0, interval*(n_epochs+1), interval))
+    # tick_labels = list(range(n_epochs+1))
+
     # Plot the first
-    ax[0].plot(train_steps, train_loss, label="Train Loss", color="blue")
+    ax[0].plot(train_epochs, train_loss, label="Train Loss", color="blue")
     ax[0].set_ylabel("Loss")
     ax[0].legend()
     ax[0].grid(True)
 
     # Plot the second
-    ax[1].plot(test_steps, test_loss, label="Test Loss, Average", color="red")
-    interval = int(np.ceil(len(train_dataset)/batch_size))
-    ax[1].set_xticks(range(0,interval*(n_epochs+1),interval))
-    ax[1].set_xticklabels(range(n_epochs+1))
+    ax[1].plot(test_epochs, test_loss, label="Test Loss, Average", color="red")
+    # interval = int(np.ceil(len(train_dataset)/batch_size))
+    # ax[1].set_xticks(range(0,interval*(n_epochs+1),interval))
+    # ax[1].set_xticklabels(range(n_epochs+1))
+    tick_step = max(1, n_epochs // 10)
+    ax[1].set_xticks(range(tick_step, n_epochs + 1, tick_step))
     ax[1].set_xlabel("Epoch")
     ax[1].set_ylabel("Loss")
     ax[1].legend()
