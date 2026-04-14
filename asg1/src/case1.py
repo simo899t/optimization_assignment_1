@@ -582,9 +582,9 @@ def main():
         search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, title=title)
         plot_trajectories = []
 
-    seconds = 5
+    seconds = 300
     steps = 100
-    title = "5 seconds"
+    title = "120 seconds"
     titles = ["basic_GD [100s]", "GDSB [100s]", "GS_nest_mom [100s]", "GD_mom [100s]", "Nelder_Mead - [100s]s"]
 
     if test_all_time:
