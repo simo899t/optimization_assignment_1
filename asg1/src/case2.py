@@ -46,7 +46,6 @@ def count_parameters(model):
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
-
 if __name__ == '__main__':
     seed = 42
     torch.manual_seed(seed)
