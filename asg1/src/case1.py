@@ -594,13 +594,13 @@ def main():
     # steps = [50, 50, 50]
     # iterations = [0, 1, 5, 10, 50]
     # steps = [30, 30, 30, 30, 30]
-    iterations = [0, 100]
-    steps = [50, 50]
+    iterations = [0, 100, 100, 100]
+    steps = [50, 50, 50, 50]
 
     title = "Comparing Gradient Descent with Nesterov Momentum"
     
 
-    seconds = [10, 30, 60, 120]
+    seconds = [10, 30, 60]
 
     test_all_time = False
 
@@ -610,12 +610,13 @@ def main():
 
     i = 0
     while (i < len(seconds) and not test_all_time):
-        search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i], sec = seconds[i])
+        # search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i], sec = seconds[i])
         # search = GD_with_SB(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
         # search = GD_with_nesterov_momentum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
         # search = GD_with_momemtum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
         #search = Newton_method(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
         #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
+        search = GD_adam(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
         plot_trajectories.append(search.trajectory)
         i += 1
 
