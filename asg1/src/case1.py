@@ -23,22 +23,23 @@ class search_space():
         self.trajectory = list(anp.array(x).flatten().reshape(-1, 2))
         # return x
 
-    def gradient_descent_path(self, eta, lam=0, mu=0, alpha_step=0.01, alpha=0.1, max_iter=1000): # <- 1st order
+    def gradient_descent_path(self, eta, lam=0, mu=0, alpha_step=0.01, obj_alpha=0.1, max_iter=1000): # <- 1st order
         self.convergence = []
         x = anp.array(self.trajectory).flatten()    # <- initial trajectory
         i = 0
         while i < max_iter:
             print(i)
-            val, g = self.obj_func(x, eta, lam, mu, alpha, order=1)
+            val, g = self.obj_func(x, eta, lam, mu, obj_alpha, order=1)
             self.convergence.append(val)
             
-            g = anp.clip(g, -1e2, 1e2) # clip gradient
+            g = anp.clip(g, -1e5, 1e5) # clip gradient
             x_new = x - alpha_step * g
 
             x_new[:2] = self.start
             x_new[-2:] = self.goal
 
             x = x_new
+            print(f"[{i},{val}]")
             i += 1
         self.trajectory = list(x.reshape(-1, 2))
         return x
@@ -110,42 +111,39 @@ class search_space():
         self.trajectory = list(x.reshape(-1, 2))
         return x
         
-    def newton_method(self, lam, mu, alpha=0.1, max_iter = 1000): # <- 2nd order
+    def newton_method(self, lam, mu, obj_alpha=0.1, alpha=1, max_iter = 1000, beta=1e-4, sigma=1, eta=10): # <- 2nd order
         x = anp.array(self.trajectory).flatten()
         self.convergence = []
         best_solution = [[np.inf],[]]
 
+        def obj(v):
+            return self.obj_func(v, eta, lam, mu, obj_alpha, order=0)
+        f = lambda v: obj(v)
+        nabla = grad(obj)
+
         for i in range(max_iter):
             print(i)
-            val, g, h = self.obj_func(x, 1, lam, mu, alpha, order=2)
-            convergence_vals.append(val)
-            g = anp.clip(g, -1e1, 1e1) # <- ensure that g in {1e-4, 1e4}
-            eig, _ = np.linalg.eig(h)
-            new_h = np.diag(np.full(np.size(eig),1)) @ (np.diag(np.full(np.size(eig),np.absolute(eig))))  @ np.transpose(np.diag(np.full(np.size(eig),1)))
-
-            # print(f"Current path: {x}")
-            # print(f"{i}'th iteration")
-
+            val, g, h = self.obj_func(x, eta, lam, mu, obj_alpha, order=2)
+            self.convergence.append(val)
+            eig, eig_vec = np.linalg.eigh(h)
+            new_h = eig_vec @ (np.diag(np.full(np.size(eig),np.absolute(eig))))  @ np.transpose(eig_vec)
+            #new_h = eig_vec @ np.diag(np.maximum(np.abs(eig), 1e-6)) @ np.transpose(eig_vec)
+            p_k = np.linalg.solve(new_h, (-g))
+            alpha_step = self.strong_bracketing(x, f, nabla, d=p_k, alpha=alpha, beta=beta, sigma=sigma)
             print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
-            # print(f"Gradient: {g}")
-            # print(f"Hessian: {h}")
-            # print(f"Eigenvalues: {eig}")
 
-            # print(f"New Hessian: {new_h}")
-            # print(f"Inverted Hessian: {np.linalg.inv(h)}")
-            # time.sleep(10000)
-            delta = np.linalg.inv(new_h) @ g
-            
-            # print(f"Delta = {delta}")
-            
-            x_new = x - delta
 
+            x_new = x + alpha_step * p_k
+
+            x_new[:2] = self.start
+            x_new[-2:] = self.goal
             x = x_new
             if val < best_solution[0][0]:
                 best_solution = [[val],x]
 
         self.trajectory = list(x.reshape(-1, 2))
-        return best_solution[1]
+        # return best_solution[1]
+        return x
 
     def momentum_descent(self, lam, mu, obj_alpha=0.1, beta=0.001, max_iter = 100, alpha_step=0.001): # <- 1st order
         x = anp.array(self.trajectory).flatten()
@@ -317,7 +315,7 @@ class search_space():
                 if d(xi, obs) > r:
                     penalty += 1 / (d(xi, obs) - r)**2
                 else:
-                    penalty += 1e9
+                    penalty += np.inf
         # print(penalty)
         return penalty
 
@@ -339,8 +337,8 @@ class search_space():
     def obj_func(self, x, eta, lam=0, mu=0, alpha=0.1, order=1):
         def f(x):
             x = x.reshape(-1, 2)
-            av = self.avoidance2(x, alpha)
-            # av = self.avoidance1(x)
+            # av = self.avoidance2(x, alpha)
+            av = self.avoidance1(x)
             return eta * self.pathlength(x) + lam * self.smoothness(x) + mu * av
         
         match order:
@@ -451,7 +449,7 @@ def initialize_straight_line(start, goal, test=1, steps= 100):
 def basic_GD(start, goal, test=1, steps= 100, max_iter=1000):
     # best configs -> steps=100, iterations=1000, lam=50, mu=10, alpha=1, obj_alpha=1e-3
     search = initialize(start, goal, test, steps)
-    search.gradient_descent_path(eta = 5, lam=50, mu=10, alpha_step=1e-3, max_iter=max_iter)
+    search.gradient_descent_path(eta = 1, lam=2, mu=5, obj_alpha=0.01, alpha_step=1e-2, max_iter=max_iter)
     return search
 
 def GD_with_SB(start, goal, test=1, steps= 100, max_iter=200):
@@ -472,12 +470,12 @@ def GD_with_momemtum(start, goal, test=1, steps= 100, max_iter=1000):
 
 def GD_adam(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.adam(obj_alpha=0.005, alpha_step=0.01, beta=0.01,  lam=10, mu=10, max_iter=max_iter)
+    search.adam(obj_alpha=0.005, alpha_step=1, beta=0.1,  lam=2, mu=5, max_iter=max_iter, gamma_v=0.9, gamma_s=0.999, eps=1e-5) 
     return search
 
 def Newton_method(start, goal, test=1, steps= 100, max_iter=1000):
     search = initialize(start, goal, test, steps)
-    search.newton_method(lam=50, mu=10, max_iter=max_iter)
+    search.newton_method(lam=2, mu=5, max_iter=max_iter)
     return search
 
 def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000):
@@ -492,10 +490,14 @@ def main():
     
     plot_trajectories = []
 
-    iterations = [0,500,1500,5000,10000]
-    steps = [50, 50, 50, 50, 50]
+    # iterations = [0,500,1500,5000,10000]
+    # steps = [50, 50, 50, 50, 50]
     # iterations = [0,100,100,100,100]
     # steps = [1, 10, 50, 100, 200]
+    iterations = [0, 100, 1000, 5000, 10000]
+    steps = [50, 50, 50, 50, 50]
+    # iterations = [0, 1, 5, 10, 50]
+    # steps = [30, 30, 30, 30, 30]
 
     search = initialize_straight_line(start, goal, test=1, steps= steps[0])
     
@@ -505,25 +507,13 @@ def main():
         print(i)
         
         if iterations[i] > 0:
-            search = Nelder_Mead_Method(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
+            search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i])
             plot_trajectories.append(search.trajectory)
     
-    # print(f"two {plot_trajectories}")
     
     search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps)
 
-    search = Nelder_Mead_Method(start = start, 
-                                goal = goal, 
-                                steps = steps, 
-                                max_iter=max_iter)
-
-    search.plot()
-test = np.array([1,2,-3])
-
 if __name__ == "__main__":
-    print(np.transpose(np.diag(np.full(np.size(test),1))))
-    print(np.transpose(np.diag(np.full(np.size(test),test))))
-    print(np.transpose(np.absolute(test)) @ np.diag(np.full(np.size(test),1)))
     main()
 
 
