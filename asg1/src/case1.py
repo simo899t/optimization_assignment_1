@@ -120,7 +120,6 @@ class search_space():
         self.trajectory = list(x.reshape(-1, 2))
         return x
         
-# <<<<<<< HEAD
     def newton_method(self, lam, mu, obj_alpha=0.1, alpha=1, max_iter = 1000, beta=1e-4, sigma=1, eta=10, sec = 60): # <- 2nd order
         x = anp.array(self.trajectory).flatten()
         self.convergence = []
@@ -146,7 +145,6 @@ class search_space():
 
             x_new[:2] = self.start
             x_new[-2:] = self.goal
-# =======
     def newton_method(self, lam, mu, obj_alpha=0.1, alpha=1, max_iter = 1000, beta=1e-4, sigma=1, eta=10, sec = 60): # <- 2nd order
         t0 = time.perf_counter()
         x = anp.array(self.trajectory).flatten()
@@ -440,7 +438,7 @@ class search_space():
         else:
             plt.show()
 
-    def plot_mult(self, iterations, steps, save_path=None, trajectories=None):
+    def plot_mult(self, iterations, steps, save_path=None, trajectories=None, seconds = None):
         fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, sharey=True, figsize=(15, 3.5))
 
         fig_list = [ax1, ax2, ax3, ax4, ax5]
@@ -459,10 +457,10 @@ class search_space():
                 ty = [p[1] for p in trajectories[i]]
                 print(i)
                 ax.plot(tx, ty, "k.-", linewidth=1.5, markersize=6, label="trajectory")
-                if iterations[i] <= 0:
+                if i == 0:
                     ax.set_title(f'initial')
                 else:
-                    ax.set_title(f'{iterations[i]} iter, {steps[i]} steps')
+                    ax.set_title(f'{seconds[i-1]} seconds, {steps[i-1]} steps')
                 ax.plot(*self.start, "go", markersize=8, label="start")
                 ax.plot(*self.goal, "bs", markersize=8, label="goal")
 
@@ -592,15 +590,17 @@ def main():
     # steps = [50, 50, 50, 50, 50]
     # iterations = [0,100,100,100,100]
     # steps = [1, 10, 50, 100, 200]
-    iterations = [100, 1000, 5000]
-    steps = [50, 50, 50, 50]
+    # iterations = [100, 1000, 5000]
+    # steps = [50, 50, 50]
     # iterations = [0, 1, 5, 10, 50]
     # steps = [30, 30, 30, 30, 30]
+    iterations = [0, 100]
+    steps = [50, 50]
 
     title = "Comparing Gradient Descent with Nesterov Momentum"
     
 
-    seconds = 10
+    seconds = [10, 30, 60, 120]
 
     test_all_time = False
 
@@ -609,19 +609,18 @@ def main():
         plot_trajectories.append(search.trajectory)
 
     i = 0
-    while (i < len(iterations) and not test_all_time):
-        if iterations[i] > 0:
-            search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i], sec = seconds)
-            # search = GD_with_SB(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
-            # search = GD_with_nesterov_momentum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
-            # search = GD_with_momemtum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
-            #search = Newton_method(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
-            #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
-            plot_trajectories.append(search.trajectory)
-            i += 1
+    while (i < len(seconds) and not test_all_time):
+        search = basic_GD(start, goal, test=1, steps=steps[i], max_iter=iterations[i], sec = seconds[i])
+        # search = GD_with_SB(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
+        # search = GD_with_nesterov_momentum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
+        # search = GD_with_momemtum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
+        #search = Newton_method(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
+        #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
+        plot_trajectories.append(search.trajectory)
+        i += 1
 
     if not test_all_time:
-        search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, title=title)
+        search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, seconds = seconds)
         plot_trajectories = []
 
     seconds = 20
@@ -643,8 +642,8 @@ def main():
         # print(plot_trajectories)
         search = Nelder_Mead_Method(start = start, goal = goal, steps = steps, sec = seconds)
         plot_trajectories.append(search.trajectory)
+        search.plot_compare_time(trajectories=plot_trajectories, title=title, titles = titles)
     
-    search.plot_compare_time(trajectories=plot_trajectories, title=title, titles = titles)
 
 if __name__ == "__main__":
     # print(np.transpose(np.diag(np.full(np.size(test),1))))
