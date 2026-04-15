@@ -273,3 +273,12 @@ consequently the final grade if they suspect that the learning goals have not be
 _In declaring the use you can share the conversation you had with the tools and provide
 the link or copying it in the Appendix.
 The Appendix is not subjected to page limits._
+
+
+#figure(
+  grid(
+    columns: 2,
+    gutter: 1em,
+    image("conv1.png"), image("conv1.png"),
+  ),
+)
