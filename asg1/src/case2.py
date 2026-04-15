@@ -66,8 +66,8 @@ if __name__ == '__main__':
     print("datatype of the 1st training sample: ", train_dataset[0][0].type())
     print("size of the 1st training sample: ", train_dataset[0][0].size())
 
-    batch_size = 512
-    max_batch_size = 60000
+    batch_size = 60000
+    max_batch_size = 256
     print(f"starting batch_size: ", batch_size, " and growing to: ", max_batch_size)
 
     # Hardware
@@ -75,10 +75,8 @@ if __name__ == '__main__':
     print(f"Using {device} device")
 
     # Create data loaders.
-    num_w = 4 if device == 'cuda' else 0
-    pin = device == 'cuda'
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_w, pin_memory=pin, persistent_workers=(num_w > 0))
-    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_w, pin_memory=pin, persistent_workers=(num_w > 0))
+    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
     # Verify size of batches
     for X, y in test_loader:
@@ -96,14 +94,15 @@ if __name__ == '__main__':
     # Training loop
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=3e-2)
-    n_epochs = 500
-    l2_lambda = 1e-2
+    n_epochs = 10
+    l2_lambda = 0
+    # l2_lambda = 1e-2
     train_losses = []
     test_losses = []
-    batch_scheduler = StepBS(train_loader, step_size=20, gamma=1.5, max_batch_size=max_batch_size)
+    # batch_scheduler = StepBS(train_loader, step_size=5, gamma=2, max_batch_size=max_batch_size)
 
 
-    warmup_epochs = 2
+    warmup_epochs = (n_epochs/50)
     warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
         )
@@ -115,31 +114,23 @@ if __name__ == '__main__':
     )
 
 
-    scaler = torch.amp.GradScaler('cuda') if device == 'cuda' else None # windows test
 
     step = 0
     for epoch in range(n_epochs):
         model.train()
         avg_train_loss = 0.0
         for j, (images, labels) in enumerate(train_loader):
-            #optimizer.zero_grad()
-            optimizer.zero_grad(set_to_none=True) # windows test
+            optimizer.zero_grad()
             images, labels = images.to(device), labels.to(device)
-            with torch.amp.autocast(device_type=device, enabled=(device == 'cuda')):  # windows test
-                output = model(images)                                                # windows test
-                loss = criterion(output, labels)
-                for layer in [model.fc1, model.fc2, model.fc3]:
-                    loss += l2_lambda * torch.norm(layer.weight, p=2)
-            if scaler:  # windows test
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                optimizer.step()
+            output = model(images)                                                
+            loss = criterion(output, labels)
+            for layer in [model.fc1, model.fc2, model.fc3]:
+                loss += l2_lambda * torch.norm(layer.weight, p=2)
+            loss.backward()
+            optimizer.step()
             step += 1
             avg_train_loss += loss.item()
-            # if step % 10 == 0:
+            # if step % 1000 == 0:
             print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
 
         avg_train_loss /= len(train_loader)
@@ -157,7 +148,7 @@ if __name__ == '__main__':
                 correct += pred.eq(labels).sum()
 
         scheduler.step()
-        batch_scheduler.step()
+        # batch_scheduler.step()
         test_loss /= len(test_loader.dataset)
         test_losses.append((epoch+1, test_loss))
         print(f'Test set: Average loss: {test_loss}, \
@@ -233,3 +224,8 @@ if __name__ == '__main__':
 # 1         0.00886749339           89.919998%          92.64282050
 # 2         0.00886749339           89.919998%          93.87042083
 # 3         0.00886749339           89.9199981%         89.55276787
+
+
+### With batch size of 1:
+# Test set: Average loss: 0.3247330173154143, Accuracy: 8856/10000 (88.55999755859375%)
+
