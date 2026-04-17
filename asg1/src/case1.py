@@ -198,7 +198,7 @@ class search_space():
             new_h = eig_vec @ (np.diag(np.full(np.size(eig),np.absolute(eig))))  @ np.transpose(eig_vec)
             #new_h = eig_vec @ np.diag(np.maximum(np.abs(eig), 1e-6)) @ np.transpose(eig_vec)
             p_k = np.linalg.solve(new_h, (-g))
-            alpha_step = self.strong_bracketing(x, f, nabla, d=p_k, alpha=alpha, beta=beta, sigma=sigma)
+            alpha_step = self.strong_bracketing(x, f, nabla, d=p_k, y0=val, g0_vec=g, alpha=alpha, beta=beta, sigma=sigma)
             print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
 
 
@@ -677,9 +677,9 @@ def initialize(start, goal, test=1, steps = 100):
     match test:
         case 1:
             # basic test
-            #search.add_obstacle(circular_object(anp.array([20,35]), 18))
-            #search.add_obstacle(circular_object(anp.array([55,42]), 12))
-            #search.add_obstacle(circular_object(anp.array([70,80]), 22))
+            search.add_obstacle(circular_object(anp.array([20,35]), 18))
+            search.add_obstacle(circular_object(anp.array([55,42]), 12))
+            search.add_obstacle(circular_object(anp.array([70,80]), 22))
 
             #search.add_obstacle(circular_object(anp.array([10,10]), 5))
             #search.add_obstacle(circular_object(anp.array([35,45]), 25))
@@ -689,17 +689,16 @@ def initialize(start, goal, test=1, steps = 100):
             #search.add_obstacle(circular_object(anp.array([30,40]), 20))
             #search.add_obstacle(circular_object(anp.array([70,60]), 20))
 
-            # narrow corridor with flanking obstacles
-            search.add_obstacle(circular_object(anp.array([25,10]), 12))
-            search.add_obstacle(circular_object(anp.array([10,30]), 10))
-            search.add_obstacle(circular_object(anp.array([45,55]), 6))
-            search.add_obstacle(circular_object(anp.array([40,30]), 8))
-            search.add_obstacle(circular_object(anp.array([60,40]), 11))
-            search.add_obstacle(circular_object(anp.array([72,78]), 6))
-            search.add_obstacle(circular_object(anp.array([85,65]), 10))
-            search.add_obstacle(circular_object(anp.array([55,75]), 7))
-            search.add_obstacle(circular_object(anp.array([90,92]), 9))
-            search.add_obstacle(circular_object(anp.array([30,50]), 6))
+            #search.add_obstacle(circular_object(anp.array([25,10]), 12))
+            #search.add_obstacle(circular_object(anp.array([10,30]), 10))
+            #search.add_obstacle(circular_object(anp.array([45,55]), 6))
+            #search.add_obstacle(circular_object(anp.array([40,30]), 8))
+            #search.add_obstacle(circular_object(anp.array([60,40]), 11))
+            #search.add_obstacle(circular_object(anp.array([72,78]), 6))
+            #search.add_obstacle(circular_object(anp.array([85,65]), 10))
+            #search.add_obstacle(circular_object(anp.array([55,75]), 7))
+            #search.add_obstacle(circular_object(anp.array([90,92]), 9))
+            #search.add_obstacle(circular_object(anp.array([30,50]), 6))
         case 2:
             # replicate problem
             search.add_obstacle(circular_object(anp.array([50,50]), 30))
@@ -794,9 +793,9 @@ def main():
     #search = GD_with_nesterov_momentum(start, goal, steps=100, max_iter=1000)
     #search = GD_with_momemtum(start, goal, steps=100, max_iter=1000)
     #search = GD_mix(start, goal, steps=100, max_iter=1000)
-    #search = Newton_method(start, goal, steps=10, max_iter=100)
+    search = Newton_method(start, goal, steps=10, max_iter=3000)
     #search = SciPy_min(start=start, goal=goal, steps=100, max_iter=1000)
-    search = GD_adam(start = start, goal = goal, steps=100, max_iter=1000)
+    #search = GD_adam(start = start, goal = goal, steps=100, max_iter=1000)
     #search = Nelder_Mead_Method(start = start, goal = goal, steps=50, max_iter=50000)
     search.plot_single_dingle()
     
