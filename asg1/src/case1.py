@@ -90,7 +90,7 @@ class search_space():
                 alpha_lo = alpha
         return alpha_lo
     
-    # --- Custom strong bracketing line search ---
+    # --- strong bracketing line search from lecture ---
     # def gradient_descent_sb(self, alpha=1, obj_alpha=1,
     #                             beta=1e-4, sigma=0.5, eta=1, lam=1, mu=1, max_iter=1000, sec = 60):
     #     t0 = time.perf_counter()
@@ -132,7 +132,7 @@ class search_space():
     #     self.trajectory = list(x.reshape(-1, 2))
     #     return x
 
-    # --- Scipy line search (Wolfe conditions) ---
+    # --- Scipy line search ---
     def gradient_descent_sb(self, alpha=1, obj_alpha=1,
                                 beta=1e-4, sigma=0.5, eta=1, lam=1, mu=1, max_iter=1000, sec = None):
         t0 = time.perf_counter()
@@ -157,7 +157,6 @@ class search_space():
             self.convergence.append(val)
             g = anp.clip(g, -1e5, 1e5)
             direc = -g
-            # scipy line_search: c1=Armijo (beta), c2=Wolfe curvature (sigma)
             result = line_search(obj_float, nabla, x, direc, gfk=g, old_fval=val, c1=beta, c2=sigma)
             alpha_step = result[0]
             if alpha_step is None:
@@ -171,7 +170,6 @@ class search_space():
             x = x_new
             print(i)
             i += 1
-
         self.trajectory = list(x.reshape(-1, 2))
         return x
 
@@ -196,7 +194,7 @@ class search_space():
             self.convergence.append(val)
             eig, eig_vec = np.linalg.eigh(h)
             new_h = eig_vec @ (np.diag(np.full(np.size(eig),np.absolute(eig))))  @ np.transpose(eig_vec)
-            #new_h = eig_vec @ np.diag(np.maximum(np.abs(eig), 1e-6)) @ np.transpose(eig_vec)
+            # new_h = eig_vec @ np.diag(np.maximum(np.abs(eig), 1e-6)) @ np.transpose(eig_vec)
             p_k = np.linalg.solve(new_h, (-g))
             alpha_step = self.strong_bracketing(x, f, nabla, d=p_k, y0=val, g0_vec=g, alpha=alpha, beta=beta, sigma=sigma)
             print(f"[{i},{val}] : Best solution: {best_solution[0][0]}")
@@ -214,7 +212,6 @@ class search_space():
             i += 1
 
         self.trajectory = list(x.reshape(-1, 2))
-        # return best_solution[1]
         return x
 
     def momentum_descent(self, lam, mu, obj_alpha=0.01, beta=0.01, max_iter = 100, alpha_step=1, sec = None): # <- 1st order
@@ -353,7 +350,7 @@ class search_space():
         self.trajectory = list(x.reshape(-1, 2))
         return best_solution[1]
 
-    def scipy_lbfgsb(self, lam, mu, obj_alpha=0.1, max_iter=100, sec=60): # <- 1st order (scipy baseline)
+    def scipy_lbfgsb(self, lam, mu, obj_alpha=0.1, max_iter=100, sec=60): # <- (scipy baseline)
         t0 = time.perf_counter()
         x0 = anp.array(self.trajectory).flatten()
         self.convergence = []
@@ -387,8 +384,6 @@ class search_space():
         def f(v):
             return self.obj_func(v, eta, lam, mu, obj_alpha, order=0)
 
-        # Build initial simplex: perturb only interior waypoint coordinates.
-        # Skip start ([:2]) and end ([-2:]) — fixed boundary conditions.
         step = 5
         S = np.zeros((n + 1, n))
         S[0] = x
@@ -449,24 +444,22 @@ class search_space():
         return best
 
     def pathlength(self, x):
-        epsilon = 1e-12
+        epsilon = 1e-12 # for anp.norm but finite 
         pathlength = sum(anp.sqrt(anp.dot(x[i+1] - x[i], x[i+1] - x[i]) + epsilon)**2 for i in range(len(x)-1))
         # pathlength = sum(anp.linalg.norm(x[i+1] - x[i])**2 for i in range(len(x) - 1))
-        # print(pathlength)
         return pathlength
 
     def smoothness(self, x):
-        epsilon = 1e-12
+        epsilon = 1e-12 # for anp.norm but finite 
         smoothness = sum(anp.sqrt(anp.dot((x[i+1] - 2*x[i] + x[i-1]),(x[i+1] - 2*x[i] + x[i-1])) + epsilon)**2 for i in range(1, len(x) - 1))
         # smoothness = sum(anp.linalg.norm((x[i+1] - 2*x[i] + x[i-1]))**2 for i in range(1, len(x) - 1))
-        # print(smoothness)
         return smoothness
 
     def avoidance1(self, x):
         penalty = 0
 
         def d(xi, obs):
-            epsilon = 1e-12
+            epsilon = 1e-12 # for anp.norm but finite 
             return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon)
     
         for xi in x:
@@ -484,7 +477,7 @@ class search_space():
 
         def d(xi, obs):
             epsilon = 1e-12
-            return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon) #anp.norm men finite 
+            return anp.sqrt(anp.dot(xi - obs.center_point, xi - obs.center_point) + epsilon) #anp.norm but finite 
 
         for xi in x:
             penalty += sum(anp.exp(-alpha * (
@@ -515,7 +508,7 @@ class search_space():
         plt.ylabel("Objective value")
         plt.show()
 
-    def plot_single_dingle(self, save_path=None):
+    def plot_single(self, save_path=None):
         ncols = 2 + bool(self.alphas) + bool(self.effective_lr)
         fig, axes = plt.subplots(1, ncols, figsize=(7 * ncols, 6),
                                  constrained_layout=True)
@@ -666,8 +659,7 @@ class circular_object():
     def __repr__(self):
         return f"circular_object(c={self.center_point}, d={self.radius})"
 
-## === OPTIMIZATION ALGORITHMS & CONFIGURATION === ##
-
+# INITIALIZE STRAIGHT LINE
 
 def initialize(start, goal, test=1, steps = 100):
     x0 = anp.asarray(start, dtype=float)
@@ -681,14 +673,17 @@ def initialize(start, goal, test=1, steps = 100):
             search.add_obstacle(circular_object(anp.array([55,42]), 12))
             search.add_obstacle(circular_object(anp.array([70,80]), 22))
 
+            # envirement 2
             #search.add_obstacle(circular_object(anp.array([10,10]), 5))
             #search.add_obstacle(circular_object(anp.array([35,45]), 25))
             #search.add_obstacle(circular_object(anp.array([75,45]), 10))
             #search.add_obstacle(circular_object(anp.array([70,80]), 15))
 
+            # envirement 3
             #search.add_obstacle(circular_object(anp.array([30,40]), 20))
             #search.add_obstacle(circular_object(anp.array([70,60]), 20))
 
+            # envirement 4
             #search.add_obstacle(circular_object(anp.array([25,10]), 12))
             #search.add_obstacle(circular_object(anp.array([10,30]), 10))
             #search.add_obstacle(circular_object(anp.array([45,55]), 6))
@@ -700,15 +695,16 @@ def initialize(start, goal, test=1, steps = 100):
             #search.add_obstacle(circular_object(anp.array([90,92]), 9))
             #search.add_obstacle(circular_object(anp.array([30,50]), 6))
         case 2:
-            # replicate problem
+            # replicate center issue
             search.add_obstacle(circular_object(anp.array([50,50]), 30))
     return search
 
-### OBJECTIVE FUNCTION PARAMETERS
+# OBJECTIVE FUNCTION PARAMETERS
 obj_alpha = 0.02
 lam = 2
 mu = 5
 
+# METHODS AND INITIALIZATION
 def initialize_straight_line(start, goal, test=1, steps= 100):
     search = initialize(start, goal, test, steps)
     return search
@@ -769,11 +765,14 @@ def Nelder_Mead_Method(start, goal, test=1, steps= 100, max_iter=1000, sec = Non
     search.nelder_mead(eps=1e-6, obj_alpha=obj_alpha, lam=1, mu=10, max_iter=max_iter, sec = sec)
     return search
 
+# TESTING
+
 def main():
     start, goal = [1,1], [100,100]
     
     plot_trajectories = []
 
+    # differnt tests
     # iterations = [0,500,1500,5000,10000]
     # steps = [50, 50, 50, 50, 50]
     # iterations = [0,100,100,100,100]
@@ -788,16 +787,17 @@ def main():
     
     sec = 100
 
+    # testing single methods
     #search = basic_GD(start, goal, steps=100, max_iter=1000)
     #search = GD_with_SB(start, goal, steps=100, max_iter=1000)
     #search = GD_with_nesterov_momentum(start, goal, steps=100, max_iter=1000)
     #search = GD_with_momemtum(start, goal, steps=100, max_iter=1000)
     #search = GD_mix(start, goal, steps=100, max_iter=1000)
-    search = Newton_method(start, goal, steps=10, max_iter=3000)
+    #search = Newton_method(start, goal, steps=10, max_iter=3000)
     #search = SciPy_min(start=start, goal=goal, steps=100, max_iter=1000)
-    #search = GD_adam(start = start, goal = goal, steps=100, max_iter=1000)
+    search = GD_adam(start = start, goal = goal, steps=100, max_iter=100)
     #search = Nelder_Mead_Method(start = start, goal = goal, steps=50, max_iter=50000)
-    search.plot_single_dingle()
+    search.plot_single()
     
 
 
@@ -831,6 +831,7 @@ def main():
         search.plot_mult(trajectories=plot_trajectories, iterations = iterations, steps=steps, title=title)
         plot_trajectories = []
 
+    return
     seconds = 1
     steps = 50
     iter = None
@@ -846,7 +847,7 @@ def main():
         plot_trajectories.append(search.trajectory)
         search = GD_with_momemtum(start, goal, test=1, steps= 100, max_iter= iter, sec = seconds)
         plot_trajectories.append(search.trajectory)
-        #search = Newton_method(start, goal, test=1, steps=steps, max_iter= iter, sec = seconds)
+        search = Newton_method(start, goal, test=1, steps=steps, max_iter= iter, sec = seconds)
         search = GD_mix(start, goal, steps=100, max_iter= iter, sec=seconds)
         plot_trajectories.append(search.trajectory)
         search = GD_adam(start = start, goal = goal, steps = 100, max_iter= iter, sec=seconds)
@@ -857,9 +858,6 @@ def main():
     
 
 if __name__ == "__main__":
-    # print(np.transpose(np.diag(np.full(np.size(test),1))))
-    # print(np.transpose(np.diag(np.full(np.size(test),test))))
-    # print(np.transpose(np.absolute(test)) @ np.diag(np.full(np.size(test),1)))
     main()
 
 

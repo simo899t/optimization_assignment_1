@@ -84,7 +84,6 @@ fc12_params = [p for name, p in model.named_parameters() if name in ['fc1.weight
 print(fc12_params[0].numel())
 print(fc12_params[1].numel())
 
-# raise SystemExit
 
 # Training loop
 criterion = nn.CrossEntropyLoss()

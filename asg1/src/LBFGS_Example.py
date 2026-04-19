@@ -88,8 +88,6 @@ fc12_params = [p for name, p in models[0].named_parameters() if name in ['fc1.we
 print(fc12_params[0].numel())
 print(fc12_params[1].numel())
 
-# raise SystemExit
-
 # Training loop
 criterion = nn.CrossEntropyLoss()
 optimizers = []

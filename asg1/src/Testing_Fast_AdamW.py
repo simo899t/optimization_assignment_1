@@ -88,8 +88,6 @@ fc12_params = [p for name, p in models[0].named_parameters() if name in ['fc1.we
 print(fc12_params[0].numel())
 print(fc12_params[1].numel())
 
-# raise SystemExit
-
 # Training loop
 criterion = nn.CrossEntropyLoss()
 optimizers = []
@@ -116,11 +114,11 @@ for i, optimizer in enumerate(optimizers):
         optimizer, 
         start_factor=0.1, 
         end_factor=1.0, 
-        total_iters=warmup_epochs # low lr as warmup
+        total_iters=warmup_epochs
     )
     cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, 
-        T_max= n_epochs - warmup_epochs                               # do CosineAnnealingLR
+        T_max= n_epochs - warmup_epochs
     )
     scheduler = torch.optim.lr_scheduler.SequentialLR(
         optimizer, 
@@ -128,8 +126,6 @@ for i, optimizer in enumerate(optimizers):
         milestones=[warmup_epochs]
     )
     schedulers.append(scheduler)
-
-
 
 for j, model in enumerate(models):
     print(j)

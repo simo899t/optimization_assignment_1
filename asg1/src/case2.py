@@ -52,8 +52,6 @@ if __name__ == '__main__':
     #random.seed(seed)
     np.random.seed(seed)
     torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.benchmark = True  # windows test
 
     # Download the MNIST dataset
     transform = transforms.ToTensor()
@@ -105,16 +103,14 @@ if __name__ == '__main__':
 
     warmup_epochs = (n_epochs/50)
     warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs  # low lr as warmup
+        optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
         )
     cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=n_epochs- warmup_epochs                               # do CosineAnnealingLR
+        optimizer, T_max=n_epochs- warmup_epochs
     )
     scheduler = torch.optim.lr_scheduler.SequentialLR(
         optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_epochs]
     )
-
-
 
     step = 0
     for epoch in range(n_epochs):
@@ -227,6 +223,6 @@ if __name__ == '__main__':
 # 3         0.00886749339           89.9199981%         89.55276787
 
 
-### With batch size of 1:
+### With batch size of 1 ###
 # Test set: Average loss: 0.3247330173154143, Accuracy: 8856/10000 (88.55999755859375%)
 
