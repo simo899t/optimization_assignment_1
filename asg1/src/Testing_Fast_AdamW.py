@@ -282,6 +282,6 @@ ax[2].grid(True)
 ax[2].legend(loc="upper right")
 # Adjust layout and show the plot
 plt.tight_layout()
-plt.savefig('Testing_fast_AdamW.png')
+# plt.savefig('Testing_fast_AdamW.png')
 plt.show()
 
