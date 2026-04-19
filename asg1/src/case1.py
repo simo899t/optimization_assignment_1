@@ -605,7 +605,7 @@ def main():
     test_all_time = False
 
     if not test_all_time:
-        search = initialize_straight_line(start, goal, test=1, steps=steps[0])
+        search = initialize_straight_line(start, goal, test=2, steps=steps[0])
         plot_trajectories.append(search.trajectory)
 
     i = 0
@@ -616,7 +616,7 @@ def main():
         # search = GD_with_momemtum(start, goal, test=1, steps= steps[i], max_iter=iterations[i], sec = seconds)
         #search = Newton_method(start, goal, test=1, steps= steps[i], max_iter=iterations[i])
         #search = Nelder_Mead_Method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
-        search = GD_adam(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
+        search = Newton_method(start = start, goal = goal, steps = steps[i], max_iter=iterations[i], sec = seconds)
         plot_trajectories.append(search.trajectory)
         i += 1
 

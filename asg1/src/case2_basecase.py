@@ -26,7 +26,7 @@ print("number of training samples: " + str(len(train_dataset)) + "\n" +
 print("datatype of the 1st training sample: ", train_dataset[0][0].type())
 print("size of the 1st training sample: ", train_dataset[0][0].size())
 
-batch_size = 1
+batch_size = 60000
 
 # Create data loaders.
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
@@ -88,21 +88,25 @@ print(fc12_params[1].numel())
 
 # Training loop
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr=0.001)
-n_epochs = 10
+# optimizer = optim.SGD(model.parameters(), lr=0.001)
+optimizer = torch.optim.LBFGS(model.parameters(), lr=1.0, line_search_fn="strong_wolfe")
+n_epochs = 2
 train_losses = []
 test_losses = []
 
 step = 0
 for epoch in range(n_epochs):
     model.train()
+
     for i, (images, labels) in enumerate(train_loader):
-        optimizer.zero_grad()
+        def closure():
+            optimizer.zero_grad()
+            output = model(images)
+            loss = criterion(output, labels)
+            loss.backward()
+            return loss
         images, labels = images.to(device), labels.to(device)
-        output = model(images)
-        loss = criterion(output, labels)
-        loss.backward()
-        optimizer.step()
+        loss = optimizer.step(closure)
         step += 1
         train_losses.append((step, loss.item()))
         # print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')

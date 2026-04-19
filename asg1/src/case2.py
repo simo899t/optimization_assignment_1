@@ -66,7 +66,7 @@ if __name__ == '__main__':
     print("datatype of the 1st training sample: ", train_dataset[0][0].type())
     print("size of the 1st training sample: ", train_dataset[0][0].size())
 
-    batch_size = 60000
+    batch_size = 64
     max_batch_size = 256
     print(f"starting batch_size: ", batch_size, " and growing to: ", max_batch_size)
 
@@ -94,6 +94,7 @@ if __name__ == '__main__':
     # Training loop
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.0255, weight_decay=3e-2)
+    # optimizer = optim.SGD(model.parameters(), lr=0.025, momentum = 0.9)
     n_epochs = 10
     l2_lambda = 0
     # l2_lambda = 1e-2
@@ -130,8 +131,8 @@ if __name__ == '__main__':
             optimizer.step()
             step += 1
             avg_train_loss += loss.item()
-            # if step % 1000 == 0:
-            print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
+            if step % 100 == 0:
+                print(f'Epoch {epoch}, Step {step}, Loss: {loss.item()}')
 
         avg_train_loss /= len(train_loader)
         train_losses.append((epoch+1, avg_train_loss))
